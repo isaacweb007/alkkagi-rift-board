@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { calculateLaunchVelocity, integrateBody, isRingOut, MATCH_RULES, resolveShotOutcome, solveCircleCollision } from "./core";
+import { applyEdgeGrip, calculateLaunchVelocity, integrateBody, isRingOut, MATCH_RULES, resolveShotOutcome, solveCircleCollision } from "./core";
 import { createReplay, type MatchReplay, type ReplayShot } from "./replay";
 
 export type ArenaKind = "medieval" | "modern" | "future";
@@ -101,6 +101,7 @@ export class Alkkagi3DEngine {
   private boardPoint = new THREE.Vector3();
   private board: THREE.Mesh;
   private edgeRing: THREE.Mesh;
+  private gripRing: THREE.Mesh;
   private rosterTexture: THREE.Texture;
   private rosterReady = false;
   private decor = new THREE.Group();
@@ -156,7 +157,7 @@ export class Alkkagi3DEngine {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.2;
     this.container.appendChild(this.renderer.domElement);
-    this.rosterTexture = new THREE.TextureLoader().load("/assets/character-roster.png", (texture) => {
+    this.rosterTexture = new THREE.TextureLoader().load("/assets/character-roster-3d-v2.png", (texture) => {
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.minFilter = THREE.LinearMipmapLinearFilter;
       texture.magFilter = THREE.LinearFilter;
@@ -167,7 +168,7 @@ export class Alkkagi3DEngine {
     this.rosterTexture.minFilter = THREE.LinearMipmapLinearFilter;
     this.rosterTexture.magFilter = THREE.LinearFilter;
 
-    this.camera.position.set(0, 8.9, 10.8);
+    this.camera.position.set(0, 10.1, 12.4);
     this.camera.lookAt(0, 0.25, 0);
     this.scene.fog = new THREE.FogExp2(0x03101c, 0.026);
     this.scene.add(new THREE.HemisphereLight(0xb8ddff, 0x160b10, 2.4));
@@ -191,6 +192,13 @@ export class Alkkagi3DEngine {
     this.edgeRing.rotation.x = Math.PI / 2;
     this.edgeRing.position.y = 0.32;
     this.scene.add(this.edgeRing);
+    this.gripRing = new THREE.Mesh(
+      new THREE.TorusGeometry(SAFE_RADIUS - MATCH_RULES.edgeGripWidth * 0.48, MATCH_RULES.edgeGripWidth * 0.48, 2, 128),
+      new THREE.MeshBasicMaterial({ color: 0x70efff, transparent: true, opacity: 0.055, depthWrite: false }),
+    );
+    this.gripRing.rotation.x = Math.PI / 2;
+    this.gripRing.position.y = 0.329;
+    this.scene.add(this.gripRing);
 
     const aimGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
     this.aimLine = new THREE.Line(aimGeometry, new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 0.18, gapSize: 0.11, transparent: true, opacity: 0.9 }));
@@ -225,6 +233,7 @@ export class Alkkagi3DEngine {
     top.color.setHex(colors.board);
     (this.edgeRing.material as THREE.MeshStandardMaterial).color.setHex(colors.edge);
     (this.edgeRing.material as THREE.MeshStandardMaterial).emissive.setHex(colors.edge);
+    (this.gripRing.material as THREE.MeshBasicMaterial).color.setHex(colors.edge);
     this.hazardLight.color.setHex(colors.hazard);
     if (this.scene.fog instanceof THREE.FogExp2) this.scene.fog.color.setHex(colors.fog);
     this.buildDecor();
@@ -412,7 +421,7 @@ export class Alkkagi3DEngine {
       for (let index = 0; index < 12; index += 1) {
         const angle = index / 12 * Math.PI * 2;
         const spike = new THREE.Mesh(new THREE.ConeGeometry(0.16, 1.2, 5), material.clone());
-        spike.position.set(Math.cos(angle) * 5.35, -0.05, Math.sin(angle) * 5.35);
+        spike.position.set(Math.cos(angle) * (BOARD_RADIUS + 0.75), -0.05, Math.sin(angle) * (BOARD_RADIUS + 0.75));
         spike.rotation.z = -Math.cos(angle) * 0.28;
         spike.rotation.x = Math.sin(angle) * 0.28;
         this.decor.add(spike);
@@ -422,12 +431,12 @@ export class Alkkagi3DEngine {
         const angle = index / 18 * Math.PI * 2;
         const height = 0.6 + (index % 4) * 0.24;
         const tower = new THREE.Mesh(new THREE.BoxGeometry(0.22, height, 0.22), material.clone());
-        tower.position.set(Math.cos(angle) * 5.3, -0.2, Math.sin(angle) * 5.3);
+        tower.position.set(Math.cos(angle) * (BOARD_RADIUS + 0.7), -0.2, Math.sin(angle) * (BOARD_RADIUS + 0.7));
         this.decor.add(tower);
       }
     } else {
       for (let index = 0; index < 3; index += 1) {
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(5.2 + index * 0.22, 0.025, 8, 128), material.clone());
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(BOARD_RADIUS + 0.62 + index * 0.22, 0.025, 8, 128), material.clone());
         ring.rotation.x = Math.PI / 2 + (index - 1) * 0.09;
         ring.position.y = -0.18 - index * 0.18;
         this.decor.add(ring);
@@ -436,10 +445,10 @@ export class Alkkagi3DEngine {
   }
 
   private createTeams(count: 3 | 5, demo: boolean) {
-    const playerZ = demo ? 1.75 : 2.0;
-    const enemyZ = demo ? -1.75 : -2.0;
+    const playerZ = demo ? 2.0 : 2.35;
+    const enemyZ = demo ? -2.0 : -2.35;
     for (let index = 0; index < count; index += 1) {
-      const offset = (index - (count - 1) / 2) * (count === 3 ? 1.35 : 1.02);
+      const offset = (index - (count - 1) / 2) * (count === 3 ? 1.55 : 1.14);
       const player = this.createStone(PLAYER_ROSTER[index % PLAYER_ROSTER.length], "player", index);
       player.group.position.set(offset, 0.55, playerZ + Math.abs(offset) * 0.12);
       this.stones.push(player);
@@ -453,35 +462,51 @@ export class Alkkagi3DEngine {
   private createStone(character: Character, owner: Owner, index: number): Stone {
     const group = new THREE.Group();
     const bodyMaterial = new THREE.MeshPhysicalMaterial({ color: character.color, roughness: 0.28, metalness: 0.48, clearcoat: 0.8, clearcoatRoughness: 0.2, emissive: character.accent, emissiveIntensity: 0.08 });
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(STONE_RADIUS, STONE_RADIUS * 0.97, 0.28, 48, 1, false), bodyMaterial);
+    const body = new THREE.Mesh(new THREE.SphereGeometry(STONE_RADIUS, 48, 28), bodyMaterial);
+    body.scale.set(1, 0.74, 1);
+    body.position.y = 0.13;
     body.castShadow = true;
     body.receiveShadow = true;
     group.add(body);
+    const baseMaterial = new THREE.MeshStandardMaterial({ color: 0x090b10, roughness: 0.32, metalness: 0.72 });
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(STONE_RADIUS * 0.82, STONE_RADIUS * 0.9, 0.11, 48), baseMaterial);
+    base.position.y = -0.12;
+    base.castShadow = true;
+    group.add(base);
     const rimMaterial = new THREE.MeshStandardMaterial({ color: character.accent, emissive: character.accent, emissiveIntensity: 1.3, metalness: 0.65, roughness: 0.22 });
     const rim = new THREE.Mesh(new THREE.TorusGeometry(STONE_RADIUS * 0.88, 0.035, 10, 48), rimMaterial);
     rim.rotation.x = Math.PI / 2;
-    rim.position.y = 0.155;
+    rim.position.y = -0.055;
     group.add(rim);
     const portraitMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.08, emissive: character.accent, emissiveIntensity: 0.08 });
     portraitMaterial.userData.characterPortraitTile = character.portrait;
     if (this.rosterReady) portraitMaterial.map = this.createPortraitTexture(character.portrait);
     const portrait = new THREE.Mesh(
-      new THREE.CircleGeometry(STONE_RADIUS * 0.73, 48),
+      new THREE.CircleGeometry(STONE_RADIUS * 0.58, 48),
       portraitMaterial,
     );
     portrait.rotation.x = -Math.PI / 2;
-    portrait.position.y = 0.164;
+    portrait.position.y = 0.456;
     portrait.renderOrder = 2;
     group.add(portrait);
-    const faceMaterial = new THREE.MeshStandardMaterial({ color: character.demon ? 0xffb33b : 0x101522, emissive: character.demon ? 0xff321b : 0x000000, emissiveIntensity: character.demon ? 2 : 0 });
+    const eyeWhiteMaterial = new THREE.MeshPhysicalMaterial({ color: 0xf4f7ff, roughness: 0.22, metalness: 0.02, clearcoat: 0.65 });
+    const faceMaterial = new THREE.MeshStandardMaterial({ color: 0x080a0f, roughness: 0.42, metalness: 0.1 });
     for (const x of [-0.14, 0.14]) {
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.063, 16, 10), faceMaterial);
-      eye.position.set(x, 0.15, 0.36);
-      eye.scale.y = character.demon ? 0.52 : 1;
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.105, 24, 14), eyeWhiteMaterial);
+      eye.position.set(x, 0.15, 0.392);
+      eye.scale.set(1, character.demon ? 0.58 : 0.78, 0.36);
       group.add(eye);
+      const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.042, 18, 12), faceMaterial);
+      pupil.position.set(x + (x < 0 ? 0.018 : -0.018), 0.145, 0.477);
+      pupil.scale.z = 0.42;
+      group.add(pupil);
+      const brow = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.035, 0.035), faceMaterial);
+      brow.position.set(x, 0.245, 0.425);
+      brow.rotation.z = x < 0 ? -0.2 : 0.2;
+      group.add(brow);
     }
     const mouth = new THREE.Mesh(new THREE.BoxGeometry(character.demon ? 0.19 : 0.13, 0.025, 0.018), faceMaterial);
-    mouth.position.set(0, 0.065, 0.405);
+    mouth.position.set(0, 0.045, 0.431);
     mouth.rotation.z = character.demon ? -0.12 : 0.05;
     group.add(mouth);
     this.addAccessory(group, character, rimMaterial);
@@ -839,7 +864,8 @@ export class Alkkagi3DEngine {
         continue;
       }
       if (!stone.alive || !this.shotMoving) continue;
-      const integrated = integrateBody({ x: stone.group.position.x, z: stone.group.position.z, vx: stone.velocity.x, vz: stone.velocity.y, radius: stone.radius, mass: stone.mass }, dt, stone.character.stats[2], stone.spin);
+      const gripped = applyEdgeGrip({ x: stone.group.position.x, z: stone.group.position.z, vx: stone.velocity.x, vz: stone.velocity.y, radius: stone.radius, mass: stone.mass }, dt, stone.character.stats[2]);
+      const integrated = integrateBody(gripped, dt, stone.character.stats[2], stone.spin);
       stone.group.position.x = integrated.x;
       stone.group.position.z = integrated.z;
       stone.velocity.set(integrated.vx, integrated.vz);
@@ -863,7 +889,7 @@ export class Alkkagi3DEngine {
   }
 
   private resolveCollision(first: Stone, second: Stone) {
-    const restitution = 0.84 + (first.character.stats[2] + second.character.stats[2]) * 0.012;
+    const restitution = 0.76 + (first.character.stats[2] + second.character.stats[2]) * 0.012;
     const collision = solveCircleCollision(
       { x: first.group.position.x, z: first.group.position.z, vx: first.velocity.x, vz: first.velocity.y, radius: first.radius, mass: first.mass },
       { x: second.group.position.x, z: second.group.position.z, vx: second.velocity.x, vz: second.velocity.y, radius: second.radius, mass: second.mass },
@@ -1149,14 +1175,15 @@ export class Alkkagi3DEngine {
     }
     this.updateTimer(performance.now());
     const targetX = 0;
-    const targetY = 8.9;
-    const targetZ = 10.8;
+    const targetY = 10.1;
+    const targetZ = 12.4;
     if (this.cameraShake > 0.001) {
       this.camera.position.set(targetX + THREE.MathUtils.randFloatSpread(this.cameraShake), targetY + THREE.MathUtils.randFloatSpread(this.cameraShake * 0.45), targetZ + THREE.MathUtils.randFloatSpread(this.cameraShake));
       this.cameraShake *= Math.pow(0.025, dt);
     } else this.camera.position.lerp(new THREE.Vector3(targetX, targetY, targetZ), 0.12);
     this.camera.lookAt(0, 0.2, 0);
     this.edgeRing.rotation.z += dt * 0.08;
+    this.gripRing.rotation.z -= dt * 0.025;
     this.renderer.render(this.scene, this.camera);
   };
 }

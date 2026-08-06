@@ -176,9 +176,9 @@ export default function AlkkagiArena() {
       </header>
 
       {screen === "lobby" && <section className="arena-lobby">
-        <div className="engine-badge"><i /> ORIGINAL CONCEPT ROSTER LIVE <small>ALPHA 0.4</small></div>
+        <div className="engine-badge"><i /> ORIGINAL ART · 3D MODEL PASS <small>ALPHA 0.5</small></div>
         <h1>당겨서<br/><em>심연으로.</em></h1>
-        <p>콘셉트 이미지의 위험한 아레나가 실제 3D 경기장이 됩니다. 입체 돌을 직접 배치하고, 당구처럼 조준해 마지막 생존자가 되세요.</p>
+        <p>원화의 둥근 석재 몸체와 장비를 실제 3D 모델로 재구성했습니다. 넓어진 판과 가장자리 그립 존에서 당구처럼 정교하게 조준해 마지막 생존자가 되세요.</p>
 
         <div className="arena-selector" aria-label="아레나 선택">
           {(Object.keys(arenaLabels) as ArenaKind[]).map((key) => <button key={key} className={arena === key ? "active" : ""} onClick={() => setArena(key)}><small>{arenaLabels[key].sub}</small><b>{arenaLabels[key].name}</b></button>)}
@@ -194,7 +194,7 @@ export default function AlkkagiArena() {
         </button>
 
         <div className="ai-level-control"><span>지옥 AI 위험도</span><input type="range" min="1" max="10" value={aiLevel} onChange={(event) => setAiLevel(Number(event.target.value))}/><b>LV {aiLevel}</b></div>
-        <div className="engine-proof"><span><i>120</i> Hz<br/><small>FIXED PHYSICS</small></span><span><i>3D</i> WEBGL<br/><small>REAL LIGHTING</small></span><span><i>5</i> STATS<br/><small>LIVE PHYSICS</small></span></div>
+        <div className="engine-proof"><span><i>+56%</i> AREA<br/><small>WIDE BOARD</small></span><span><i>10</i> MODELS<br/><small>ORIGINAL ART 3D</small></span><span><i>GRIP</i> ZONE<br/><small>SKILL RING-OUT</small></span></div>
       </section>}
 
       {screen === "match" && <section className="arena-match-ui">
@@ -203,7 +203,7 @@ export default function AlkkagiArena() {
         <div className="team-hud enemy"><div><small>HELL AI · LV {aiLevel}</small><b>ABYSS LEGION</b><Pips alive={snapshot.enemyAlive} count={snapshot.count} enemy/></div><div className="team-symbol">♛</div></div>
 
         <aside className="stone-readout">
-          <div className="selected-concept-portrait" role="img" aria-label={`${snapshot.selectedName} 원화`} style={{ backgroundPosition: `${snapshot.selectedPortrait[0] * 25}% ${snapshot.selectedPortrait[1] * 100}%` }}><span>ORIGINAL ART</span></div>
+          <div className="selected-concept-portrait" role="img" aria-label={`${snapshot.selectedName} 3D 원화 렌더`} style={{ backgroundPosition: `${snapshot.selectedPortrait[0] * 25}% ${snapshot.selectedPortrait[1] * 100}%` }}><span>3D MODEL SOURCE</span></div>
           <small>SELECTED 3D CHARACTER</small><h2>{snapshot.selectedName}</h2><em>{snapshot.selectedElement}</em>
           {(["추진", "중량", "내구", "정밀", "회전"] as const).map((label, index) => <div className="stat-line" key={label}><span>{label}</span><i><b style={{ width: `${snapshot.selectedStats[index] * 20}%` }} /></i><strong>{snapshot.selectedStats[index]}</strong></div>)}
         </aside>
@@ -214,7 +214,7 @@ export default function AlkkagiArena() {
         {!snapshot.replay && <div className="power-3d"><div><small>SHOT POWER</small><b>{snapshot.power}</b><span>/100</span></div><i><em style={{ width: `${snapshot.power}%` }} /></i><footer><span>CONTROL</span><span>HEAVY</span><span>MAX</span></footer></div>}
         {!snapshot.replay && snapshot.phase === "placement" && <button data-testid="confirm-placement" className="ready-3d" onClick={() => engineRef.current?.confirmPlacement()}>배치 확정 <b>READY</b></button>}
         <button data-testid="leave-arena" className="leave-3d" onClick={returnLobby}>← 로비</button>
-        {!snapshot.replay && <div className="input-help"><span>클릭 + 드래그: 반대로 당기기</span><span>Q / E: 회전</span><span>ESC: 조준 취소</span></div>}
+        {!snapshot.replay && <div className="input-help"><span>클릭 + 드래그: 반대로 당기기</span><span>청록 링: EDGE GRIP ZONE</span><span>Q / E: 회전 · ESC: 취소</span></div>}
 
         {snapshot.phase === "result" && <div className={`result-3d ${snapshot.winner === "player" ? "win" : "loss"}`}><div><small>{snapshot.replay ? "MATCH ARCHIVE COMPLETE" : snapshot.winner === "player" ? "ARENA SURVIVOR" : "FALLEN INTO THE RIFT"}</small><h2>{snapshot.replay ? "재생 완료" : snapshot.winner === "player" ? "승리!" : "패배"}</h2><p>{snapshot.replay ? "배치와 모든 샷 이벤트를 실제 3D 물리로 다시 재생했습니다." : snapshot.winner === "player" ? "마지막 돌이 3D 아레나 위에 남았습니다." : "심연의 군단이 판을 장악했습니다."}</p><button onClick={snapshot.replay ? playLastReplay : () => start(snapshot.count, "practice")}>{snapshot.replay ? "다시 보기" : "다시 대전"}</button><button onClick={returnLobby}>{snapshot.replay ? "리플레이 종료" : "로비로"}</button></div></div>}
       </section>}

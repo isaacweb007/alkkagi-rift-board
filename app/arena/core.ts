@@ -24,9 +24,11 @@ export type ShotOutcome = {
 };
 
 export const MATCH_RULES = Object.freeze({
-  boardRadius: 4.6,
-  safeRadius: 4.17,
+  boardRadius: 5.75,
+  safeRadius: 5.31,
   stoneRadius: 0.43,
+  edgeGripWidth: 0.78,
+  edgeGripStrength: 3.2,
   fixedStep: 1 / 120,
   placementSeconds: 20,
   turnSeconds: 20,
@@ -41,8 +43,27 @@ export function calculateLaunchVelocity(power: number, drive: number, directionX
   const safePower = clamp(power, 0, 100);
   const safeDrive = clamp(drive, 1, 5);
   const length = Math.hypot(directionX, directionZ) || 1;
-  const speed = (2.9 + safePower * 0.055) * (0.82 + safeDrive * 0.075);
+  const speed = (2.65 + safePower * 0.05) * (0.82 + safeDrive * 0.07);
   return { vx: directionX / length * speed, vz: directionZ / length * speed, speed };
+}
+
+export function applyEdgeGrip(body: BodyState, dt: number, durability: number, safeRadius = MATCH_RULES.safeRadius): BodyState {
+  const distance = Math.hypot(body.x, body.z);
+  const gripStart = safeRadius - MATCH_RULES.edgeGripWidth;
+  if (distance <= gripStart || distance <= 0) return body;
+  const normalX = body.x / distance;
+  const normalZ = body.z / distance;
+  const outwardSpeed = body.vx * normalX + body.vz * normalZ;
+  if (outwardSpeed <= 0) return body;
+  const gripDepth = clamp((distance - gripStart) / MATCH_RULES.edgeGripWidth, 0, 1);
+  const durabilityGrip = 0.82 + clamp(durability, 1, 5) * 0.075;
+  const retainedOutwardSpeed = outwardSpeed * Math.exp(-MATCH_RULES.edgeGripStrength * durabilityGrip * gripDepth * dt);
+  const reduction = outwardSpeed - retainedOutwardSpeed;
+  return {
+    ...body,
+    vx: body.vx - normalX * reduction,
+    vz: body.vz - normalZ * reduction,
+  };
 }
 
 export function integrateBody(body: BodyState, dt: number, durability: number, spin: number): BodyState {

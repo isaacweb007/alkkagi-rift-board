@@ -89,6 +89,7 @@ test("includes the complete visual concept asset set", async () => {
   const assets = [
     "key-art.png",
     "character-roster.png",
+    "character-roster-3d-v2.png",
     "board-topdown.png",
     "arena-medieval.png",
     "arena-modern.png",
@@ -188,12 +189,16 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(engine, /private ringOut/);
   assert.match(engine, /BONUS SHOT/);
   assert.match(engine, /private takeAiShot/);
-  assert.match(engine, /character-roster\.png/);
+  assert.match(engine, /character-roster-3d-v2\.png/);
   assert.match(engine, /private createPortraitTexture/);
+  assert.match(engine, /new THREE\.SphereGeometry\(STONE_RADIUS/);
+  assert.match(engine, /applyEdgeGrip/);
   for (const character of ["몽돌", "브릭 경", "루나벨", "핀치", "번개배달 모모", "비트캣", "세이프티 박사", "제로-볼트", "코멧 키드", "오로라-8"]) {
     assert.match(engine, new RegExp(character));
   }
   assert.match(core, /export function solveCircleCollision/);
+  assert.match(core, /export function applyEdgeGrip/);
+  assert.match(core, /boardRadius: 5\.75/);
   assert.match(core, /export function resolveShotOutcome/);
   assert.match(core, /fixedStep: 1 \/ 120/);
   assert.match(styles, /arena-modern-danger-v2\.png/);

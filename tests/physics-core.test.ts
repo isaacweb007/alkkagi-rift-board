@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  applyEdgeGrip,
   calculateLaunchVelocity,
   integrateBody,
   isRingOut,
@@ -37,6 +38,17 @@ test("fixed-step integration applies friction and spin curve", () => {
   assert.ok(Math.hypot(straight.vx, straight.vz) < 5);
   assert.equal(straight.vz, 0);
   assert.ok(curved.vz > 0);
+});
+
+test("wide arena edge grip slows only outward motion near the rim", () => {
+  assert.ok(MATCH_RULES.boardRadius >= 5.7);
+  const nearEdge = body({ x: MATCH_RULES.safeRadius - 0.2, vx: 5, vz: 0 });
+  const held = applyEdgeGrip(nearEdge, 0.25, 3);
+  assert.ok(held.vx < nearEdge.vx);
+  assert.equal(held.vz, 0);
+
+  const returning = body({ x: MATCH_RULES.safeRadius - 0.2, vx: -5, vz: 0 });
+  assert.deepEqual(applyEdgeGrip(returning, 0.25, 3), returning);
 });
 
 test("circle collision separates stones and conserves momentum", () => {

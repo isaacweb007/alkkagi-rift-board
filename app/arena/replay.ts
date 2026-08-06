@@ -36,6 +36,7 @@ const OWNERS: ReplayOwner[] = ["player", "enemy"];
 const ARENAS: ReplayArena[] = ["medieval", "modern", "future"];
 const SAFE_ID = /^[a-zA-Z0-9_-]{16,80}$/;
 const STONE_ID = /^(player|enemy)-([0-4])$/;
+const REPLAY_PLACEMENT_LIMIT = 4.9;
 
 export function createReplay(seed: ReplaySeed): MatchReplay {
   return {
@@ -80,7 +81,7 @@ export function validateAndNormalizeReplay(input: unknown): MatchReplay | null {
     if (!placement || typeof placement !== "object" || Array.isArray(placement)) return null;
     const candidate = placement as Partial<ReplayPlacement>;
     if (typeof candidate.stoneId !== "string" || !expectedStoneIds.has(candidate.stoneId) || seenPlacements.has(candidate.stoneId)) return null;
-    if (!finiteNumber(candidate.x) || !finiteNumber(candidate.z) || Math.abs(candidate.x) > 4.5 || Math.abs(candidate.z) > 4.5) return null;
+    if (!finiteNumber(candidate.x) || !finiteNumber(candidate.z) || Math.hypot(candidate.x, candidate.z) > REPLAY_PLACEMENT_LIMIT) return null;
     seenPlacements.add(candidate.stoneId);
     placements.push({ stoneId: candidate.stoneId, x: round(candidate.x), z: round(candidate.z) });
   }
