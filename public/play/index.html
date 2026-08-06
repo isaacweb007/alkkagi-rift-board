@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#070912" />
+  <meta name="description" content="알까기: 시공의 판 HTML5 playable vertical slice" />
+  <title>알까기: 시공의 판 — HTML5 플레이 엔진</title>
+  <link rel="stylesheet" href="game.css" />
+</head>
+<body>
+  <div class="app-shell" id="app">
+    <header class="game-header">
+      <a class="game-brand" href="../ALKAGI_CONCEPT_BOOK.html" aria-label="콘셉트북으로 돌아가기">
+        <span class="brand-stone">✦</span>
+        <span><b>ALKKAGI</b><small>RIFT BOARD · HTML5 ENGINE</small></span>
+      </a>
+      <div class="profile-strip" aria-label="플레이어 진행 정보">
+        <span class="profile-level">LV <b id="profileLevel">1</b></span>
+        <span class="profile-name" id="profileName">RIFT ROOKIE</span>
+        <span class="profile-currency">◆ <b id="profilePoints">500</b> PP</span>
+        <span class="profile-xp"><i id="profileXpBar"></i><em id="profileXpText">0 / 100 XP</em></span>
+      </div>
+      <button class="icon-button" id="soundToggle" aria-label="사운드 켜기 또는 끄기">♪</button>
+    </header>
+
+    <main>
+      <section class="lobby-screen" id="lobbyScreen">
+        <div class="lobby-copy">
+          <span class="kicker">TURN-BASED · PHYSICS · RING-OUT</span>
+          <h1>당겨라.<br/><span>떨어뜨려라.</span><br/>한 번 더!</h1>
+          <p>20초 안에 돌을 배치하고, 랜덤 선공으로 시작합니다. 상대를 심연으로 떨어뜨리면 보너스 샷. 마지막 돌을 남기면 승리합니다.</p>
+          <div class="rule-pills"><span>3 vs 3</span><span>5 vs 5</span><span>20초 배치</span><span>레벨 매칭 ±2</span></div>
+        </div>
+
+        <div class="mode-stack" aria-label="게임 모드 선택">
+          <article class="mode-card ranked-card">
+            <div class="mode-icon">⚔</div>
+            <div><small>RANKED NETWORK</small><h2>3 대 3 속전</h2><p>빠른 전술전 · 참가 포인트 15 PP · 레벨 근접 매칭</p></div>
+            <button class="play-button" data-mode="ranked" data-count="3">매칭 시작 <b>→</b></button>
+          </article>
+          <article class="mode-card ranked-card five">
+            <div class="mode-icon">✹</div>
+            <div><small>RANKED NETWORK</small><h2>5 대 5 정규전</h2><p>연쇄 충돌 중심 · 참가 포인트 30 PP · 더 많은 XP</p></div>
+            <button class="play-button" data-mode="ranked" data-count="5">매칭 시작 <b>→</b></button>
+          </article>
+          <article class="mode-card practice-card">
+            <div class="mode-icon demon">♛</div>
+            <div><small>HELL PRACTICE</small><h2>지옥 AI 연습장</h2><p>무시무시한 악마 돌과 연습 · 연습 레벨 1–10</p></div>
+            <div class="practice-action"><select id="practiceCount" aria-label="AI 연습 인원"><option value="3">3 vs 3</option><option value="5">5 vs 5</option></select><select id="practiceLevel" aria-label="AI 연습 레벨"></select><button class="play-button" data-mode="practice">AI 도전 <b>→</b></button></div>
+          </article>
+        </div>
+
+        <aside class="squad-panel">
+          <div class="panel-heading"><div><small>MY SQUAD</small><h2>출전 알 선택</h2></div><span id="squadLimit">3 / 3</span></div>
+          <div class="squad-grid" id="squadGrid"></div>
+          <p class="squad-note">능력치는 실제 추진력·중량·에너지 보존·미세 조절·회전에 적용됩니다. 원소는 타격 연출과 캐릭터 음색을 바꿉니다.</p>
+        </aside>
+      </section>
+
+      <section class="match-screen is-hidden" id="matchScreen">
+        <div class="arena-backdrop" id="arenaBackdrop"></div>
+        <canvas id="gameCanvas" width="1600" height="900" aria-label="알까기 3D 스타일 전투 보드"></canvas>
+
+        <div class="battle-hud">
+          <div class="team-card player-card">
+            <div class="avatar player-avatar">✦</div><div><small>YOU</small><b id="playerLabel">RIFT ROOKIE</b><div class="survivor-pips" id="playerPips"></div></div>
+          </div>
+          <div class="turn-core">
+            <span class="phase-label" id="phaseLabel">PLACEMENT</span>
+            <strong id="turnTimer">20</strong>
+            <span id="turnMessage">20초 안에 돌을 배치하세요</span>
+          </div>
+          <div class="team-card enemy-card">
+            <div><small id="enemyModeLabel">RIVAL</small><b id="enemyLabel">MATCHING...</b><div class="survivor-pips" id="enemyPips"></div></div><div class="avatar enemy-avatar">♛</div>
+          </div>
+        </div>
+
+        <aside class="selected-stats" id="selectedStats">
+          <small>SELECTED STONE</small><h3 id="selectedName">돌을 선택하세요</h3><span class="element-tag" id="selectedElement">—</span>
+          <div class="mini-stat"><b>추진</b><i><em id="statDrive"></em></i><span id="statDriveValue">—</span></div>
+          <div class="mini-stat"><b>중량</b><i><em id="statMass"></em></i><span id="statMassValue">—</span></div>
+          <div class="mini-stat"><b>내구</b><i><em id="statDurability"></em></i><span id="statDurabilityValue">—</span></div>
+          <div class="mini-stat"><b>정밀</b><i><em id="statPrecision"></em></i><span id="statPrecisionValue">—</span></div>
+          <div class="mini-stat"><b>회전</b><i><em id="statSpin"></em></i><span id="statSpinValue">—</span></div>
+        </aside>
+
+        <div class="power-console" id="powerConsole">
+          <div class="power-readout"><small>SHOT POWER</small><b id="powerValue">0</b><span>/ 100</span></div>
+          <div class="power-track"><i class="control-zone"></i><i class="heavy-zone"></i><i class="max-zone"></i><em id="powerNeedle"></em></div>
+          <div class="power-labels"><span>CONTROL</span><span>HEAVY</span><span>MAX</span></div>
+          <div class="control-hints"><span>마우스: 반대로 당겨 놓기</span><span>SHIFT: 정밀 조준</span><span>휠: ±1 파워</span><span>ESC: 취소</span></div>
+        </div>
+
+        <button class="confirm-placement" id="confirmPlacement">배치 확정 <b>READY</b></button>
+        <button class="leave-match" id="leaveMatch">← 로비</button>
+        <div class="bonus-banner" id="bonusBanner"><small>RING-OUT COMBO</small><strong>BONUS SHOT!</strong><span>상대를 떨어뜨렸습니다 · 한 번 더</span></div>
+        <div class="impact-flash" id="impactFlash"></div>
+        <div class="toast" id="toast"></div>
+      </section>
+    </main>
+
+    <div class="matchmaking is-hidden" id="matchmaking" role="dialog" aria-modal="true" aria-labelledby="matchmakingTitle">
+      <div class="matchmaking-card">
+        <div class="radar"><i></i><i></i><i></i><b>✦</b></div>
+        <small>AUTO MATCHMAKING</small><h2 id="matchmakingTitle">비슷한 레벨의 상대 검색 중</h2>
+        <p id="matchmakingStatus">LV ±2 범위 · 서버 프로필 검증 · 랜덤 선공</p>
+        <div class="search-bar"><i></i></div>
+        <button id="cancelMatchmaking">취소</button>
+      </div>
+    </div>
+
+    <div class="result-modal is-hidden" id="resultModal" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+      <div class="result-card">
+        <span class="result-emblem" id="resultEmblem">♛</span>
+        <small id="resultKicker">MATCH COMPLETE</small><h2 id="resultTitle">승리!</h2><p id="resultReason">마지막 돌이 아레나에 남았습니다.</p>
+        <div class="reward-grid"><div><small>PLAY POINT</small><b id="resultPoints">+15</b></div><div><small>EXPERIENCE</small><b id="resultXp">+80 XP</b></div><div><small>LEVEL</small><b id="resultLevel">LV 1</b></div></div>
+        <div class="result-actions"><button id="rematchButton">같은 규칙 재대결</button><button id="lobbyButton">로비로</button></div>
+      </div>
+    </div>
+  </div>
+  <script src="game.js" defer></script>
+</body>
+</html>

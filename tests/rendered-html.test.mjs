@@ -122,3 +122,45 @@ test("includes the complete visual concept asset set", async () => {
   assert.match(packageJson, /"name": "alkkagi-rift-board-concept"/);
   await access(projectRoot);
 });
+
+test("ships the playable 3v3 and 5v5 HTML5 vertical slice", async () => {
+  const [html, css, game] = await Promise.all([
+    readFile(new URL("../public/play/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../public/play/game.css", import.meta.url), "utf8"),
+    readFile(new URL("../public/play/game.js", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(html, /<canvas[^>]+id="gameCanvas"[^>]+width="1600"[^>]+height="900"/i);
+  assert.match(html, /data-mode="ranked" data-count="3"/);
+  assert.match(html, /data-mode="ranked" data-count="5"/);
+  assert.match(html, /id="practiceCount"/);
+  assert.match(html, /20초 안에 돌을 배치/);
+  assert.match(html, /BONUS SHOT!/);
+  assert.match(game, /const ROSTER\s*=\s*\[/);
+  assert.match(game, /const DEMONS\s*=\s*\[/);
+  assert.match(game, /fixed=1\/120/);
+  assert.match(game, /Math\.random\(\) < 0\.5 \? "player" : "enemy"/);
+  assert.match(game, /\/api\/game\/queue/);
+  assert.match(game, /\/api\/game\/result/);
+  assert.match(game, /function playFall\(stone\)/);
+  assert.match(css, /arena-modern-danger-v2\.png/);
+  assert.match(css, /prefers-reduced-motion:\s*reduce/);
+  assert.doesNotThrow(() => new Function(game));
+});
+
+test("defines persistent profiles, level matching, and sandbox progression", async () => {
+  const [schema, queueRoute, resultRoute, hosting] = await Promise.all([
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/game/queue/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/game/result/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(schema, /sqliteTable\("players"/);
+  assert.match(schema, /sqliteTable\("match_queue"/);
+  assert.match(schema, /sqliteTable\("matches"/);
+  assert.match(queueRoute, /profile\.level - 2/);
+  assert.match(queueRoute, /Math\.random\(\) < 0\.5/);
+  assert.match(resultRoute, /sandbox_play_points/);
+  assert.equal(JSON.parse(hosting).d1, "DB");
+});
