@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { calculateLaunchVelocity, integrateBody, isRingOut, MATCH_RULES, resolveShotOutcome, solveCircleCollision } from "./core";
 
 export type ArenaKind = "medieval" | "modern" | "future";
 export type MatchMode = "practice" | "ranked";
@@ -64,10 +65,10 @@ const ARENA_COLORS: Record<ArenaKind, { board: number; edge: number; hazard: num
   future: { board: 0x171126, edge: 0xb15cff, hazard: 0x7a2cff, fog: 0x0c0617 },
 };
 
-const BOARD_RADIUS = 4.6;
-const SAFE_RADIUS = 4.17;
-const STONE_RADIUS = 0.43;
-const FIXED_STEP = 1 / 120;
+const BOARD_RADIUS = MATCH_RULES.boardRadius;
+const SAFE_RADIUS = MATCH_RULES.safeRadius;
+const STONE_RADIUS = MATCH_RULES.stoneRadius;
+const FIXED_STEP = MATCH_RULES.fixedStep;
 
 export class Alkkagi3DEngine {
   private container: HTMLDivElement;
@@ -221,8 +222,8 @@ export class Alkkagi3DEngine {
     this.shotMoving = false;
     this.bonus = false;
     this.message = "20초 안에 자신의 돌을 배치하세요";
-    this.phaseDeadline = performance.now() + 20_000;
-    this.timer = 20;
+    this.phaseDeadline = performance.now() + MATCH_RULES.placementSeconds * 1000;
+    this.timer = MATCH_RULES.placementSeconds;
     this.clearStones();
     this.createTeams(config.count, false);
     this.selectStone(this.stones.find((stone) => stone.owner === "player") || null);
@@ -236,8 +237,8 @@ export class Alkkagi3DEngine {
     this.phase = "battle";
     this.active = this.first;
     this.message = this.first === "player" ? "선공입니다 · 돌을 당겨 발사하세요" : "상대가 선공입니다";
-    this.phaseDeadline = performance.now() + 20_000;
-    this.timer = 20;
+    this.phaseDeadline = performance.now() + MATCH_RULES.turnSeconds * 1000;
+    this.timer = MATCH_RULES.turnSeconds;
     this.playTone(420, 0.12, 0.04, 780);
     this.emit();
     if (this.active === "enemy") this.scheduleAi();
@@ -584,10 +585,9 @@ export class Alkkagi3DEngine {
   }
 
   private launch(stone: Stone, direction: THREE.Vector2, power: number, spin: number) {
-    const drive = stone.character.stats[0];
     const durability = stone.character.stats[2];
-    const speed = (2.9 + power * 0.055) * (0.82 + drive * 0.075);
-    stone.velocity.copy(direction).multiplyScalar(speed);
+    const launch = calculateLaunchVelocity(power, stone.character.stats[0], direction.x, direction.y);
+    stone.velocity.set(launch.vx, launch.vz);
     stone.spin = spin * (0.35 + stone.character.stats[4] * 0.12);
     this.shotMoving = true;
     this.shotOwner = stone.owner;
@@ -615,15 +615,12 @@ export class Alkkagi3DEngine {
         continue;
       }
       if (!stone.alive || !this.shotMoving) continue;
-      const curve = stone.spin * stone.velocity.length() * 0.095 * dt;
-      stone.velocity.add(new THREE.Vector2(-stone.velocity.y, stone.velocity.x).normalize().multiplyScalar(curve));
-      stone.group.position.x += stone.velocity.x * dt;
-      stone.group.position.z += stone.velocity.y * dt;
+      const integrated = integrateBody({ x: stone.group.position.x, z: stone.group.position.z, vx: stone.velocity.x, vz: stone.velocity.y, radius: stone.radius, mass: stone.mass }, dt, stone.character.stats[2], stone.spin);
+      stone.group.position.x = integrated.x;
+      stone.group.position.z = integrated.z;
+      stone.velocity.set(integrated.vx, integrated.vz);
       stone.group.rotation.y += stone.velocity.length() * dt * 0.65;
-      const retention = 0.3 + stone.character.stats[2] * 0.035;
-      stone.velocity.multiplyScalar(Math.pow(retention, dt));
-      if (stone.velocity.length() < 0.018) stone.velocity.set(0, 0);
-      if (Math.hypot(stone.group.position.x, stone.group.position.z) > SAFE_RADIUS) this.ringOut(stone);
+      if (isRingOut(stone.group.position.x, stone.group.position.z)) this.ringOut(stone);
     }
     if (!this.shotMoving) return;
     for (let firstIndex = 0; firstIndex < this.stones.length; firstIndex += 1) {
@@ -638,34 +635,29 @@ export class Alkkagi3DEngine {
     const maximumSpeed = Math.max(0, ...this.stones.filter((stone) => stone.alive).map((stone) => stone.velocity.length()));
     if (maximumSpeed < 0.03) this.stableTime += dt;
     else this.stableTime = 0;
-    if (this.stableTime > 0.28) this.resolveShot();
+    if (this.stableTime > MATCH_RULES.stableSeconds) this.resolveShot();
   }
 
   private resolveCollision(first: Stone, second: Stone) {
-    const delta = new THREE.Vector2(second.group.position.x - first.group.position.x, second.group.position.z - first.group.position.z);
-    const distance = delta.length();
-    const minimum = first.radius + second.radius;
-    if (distance <= 0 || distance >= minimum) return;
-    const normal = delta.multiplyScalar(1 / distance);
-    const overlap = minimum - distance;
-    const totalMass = first.mass + second.mass;
-    first.group.position.x -= normal.x * overlap * second.mass / totalMass;
-    first.group.position.z -= normal.y * overlap * second.mass / totalMass;
-    second.group.position.x += normal.x * overlap * first.mass / totalMass;
-    second.group.position.z += normal.y * overlap * first.mass / totalMass;
-    const relative = second.velocity.clone().sub(first.velocity);
-    const separatingSpeed = relative.dot(normal);
-    if (separatingSpeed >= 0) return;
     const restitution = 0.84 + (first.character.stats[2] + second.character.stats[2]) * 0.012;
-    const impulse = -(1 + restitution) * separatingSpeed / (1 / first.mass + 1 / second.mass);
-    first.velocity.addScaledVector(normal, -impulse / first.mass);
-    second.velocity.addScaledVector(normal, impulse / second.mass);
+    const collision = solveCircleCollision(
+      { x: first.group.position.x, z: first.group.position.z, vx: first.velocity.x, vz: first.velocity.y, radius: first.radius, mass: first.mass },
+      { x: second.group.position.x, z: second.group.position.z, vx: second.velocity.x, vz: second.velocity.y, radius: second.radius, mass: second.mass },
+      restitution,
+    );
+    if (!collision.collided) return;
+    first.group.position.x = collision.first.x;
+    first.group.position.z = collision.first.z;
+    first.velocity.set(collision.first.vx, collision.first.vz);
+    second.group.position.x = collision.second.x;
+    second.group.position.z = collision.second.z;
+    second.velocity.set(collision.second.vx, collision.second.vz);
     const now = performance.now();
-    if (impulse > 0.45 && now - first.lastImpact > 75 && now - second.lastImpact > 75) {
+    if (collision.impulse > 0.45 && now - first.lastImpact > 75 && now - second.lastImpact > 75) {
       first.lastImpact = second.lastImpact = now;
       const position = new THREE.Vector3((first.group.position.x + second.group.position.x) / 2, 0.66, (first.group.position.z + second.group.position.z) / 2);
       const element = first.velocity.length() >= second.velocity.length() ? first.character.element : second.character.element;
-      this.spawnImpact(position, element, impulse);
+      this.spawnImpact(position, element, collision.impulse);
     }
   }
 
@@ -685,10 +677,11 @@ export class Alkkagi3DEngine {
   private resolveShot() {
     this.shotMoving = false;
     this.stones.forEach((stone) => stone.velocity.set(0, 0));
-    const playerAlive = this.stones.some((stone) => stone.owner === "player" && stone.alive);
-    const enemyAlive = this.stones.some((stone) => stone.owner === "enemy" && stone.alive);
-    if (!enemyAlive || !playerAlive) {
-      this.winner = enemyAlive ? "enemy" : "player";
+    const playerAlive = this.stones.filter((stone) => stone.owner === "player" && stone.alive).length;
+    const enemyAlive = this.stones.filter((stone) => stone.owner === "enemy" && stone.alive).length;
+    const outcome = resolveShotOutcome(this.shotOwner, this.eliminatedThisShot, playerAlive, enemyAlive);
+    if (outcome.finished) {
+      this.winner = outcome.winner;
       this.phase = "result";
       this.message = this.winner === "player" ? "RIFT BOARD SURVIVOR" : "THE ABYSS CLAIMS THE BOARD";
       this.bonus = false;
@@ -696,20 +689,19 @@ export class Alkkagi3DEngine {
       this.emit();
       return;
     }
-    const droppedOpponent = this.eliminatedThisShot.includes(this.shotOwner === "player" ? "enemy" : "player");
-    if (droppedOpponent) {
-      this.active = this.shotOwner;
+    if (outcome.bonus) {
+      this.active = outcome.active;
       this.bonus = true;
       this.message = this.active === "player" ? "BONUS SHOT · 한 번 더!" : "적이 BONUS SHOT을 획득했습니다";
       this.playBonus();
       window.setTimeout(() => { this.bonus = false; this.emit(); }, 1800);
     } else {
-      this.active = this.shotOwner === "player" ? "enemy" : "player";
+      this.active = outcome.active;
       this.bonus = false;
       this.message = this.active === "player" ? "당신의 턴입니다" : "지옥 AI가 조준 중입니다";
     }
-    this.phaseDeadline = performance.now() + 20_000;
-    this.timer = 20;
+    this.phaseDeadline = performance.now() + MATCH_RULES.turnSeconds * 1000;
+    this.timer = MATCH_RULES.turnSeconds;
     this.emit();
     if (this.active === "enemy") this.scheduleAi();
   }
@@ -871,7 +863,7 @@ export class Alkkagi3DEngine {
     else if (this.active === "player") {
       this.active = "enemy";
       this.message = "시간 초과 · 상대 턴";
-      this.phaseDeadline = performance.now() + 20_000;
+      this.phaseDeadline = performance.now() + MATCH_RULES.turnSeconds * 1000;
       this.scheduleAi();
       this.emit();
     } else this.takeAiShot();

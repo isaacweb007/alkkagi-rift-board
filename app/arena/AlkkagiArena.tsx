@@ -129,8 +129,8 @@ export default function AlkkagiArena() {
         </div>
 
         <div className="engine-modes">
-          <button onClick={() => start(3, "practice")}><span>01</span><small>HELL PRACTICE</small><b>3 VS 3 속전</b><em>약 3–5분 · 실제 3D 물리</em><strong>PLAY ↗</strong></button>
-          <button className="featured" onClick={() => start(5, "practice")}><span>02</span><small>FULL BATTLE</small><b>5 VS 5 정규전</b><em>연쇄 충돌 · 보너스 샷</em><strong>PLAY ↗</strong></button>
+          <button data-testid="start-3v3" onClick={() => start(3, "practice")}><span>01</span><small>HELL PRACTICE</small><b>3 VS 3 속전</b><em>약 3–5분 · 실제 3D 물리</em><strong>PLAY ↗</strong></button>
+          <button data-testid="start-5v5" className="featured" onClick={() => start(5, "practice")}><span>02</span><small>FULL BATTLE</small><b>5 VS 5 정규전</b><em>연쇄 충돌 · 보너스 샷</em><strong>PLAY ↗</strong></button>
         </div>
 
         <div className="ai-level-control"><span>지옥 AI 위험도</span><input type="range" min="1" max="10" value={aiLevel} onChange={(event) => setAiLevel(Number(event.target.value))}/><b>LV {aiLevel}</b></div>
@@ -151,8 +151,8 @@ export default function AlkkagiArena() {
         {snapshot.bonus && <div className="bonus-3d"><small>RING-OUT COMBO</small><b>BONUS SHOT!</b></div>}
 
         <div className="power-3d"><div><small>SHOT POWER</small><b>{snapshot.power}</b><span>/100</span></div><i><em style={{ width: `${snapshot.power}%` }} /></i><footer><span>CONTROL</span><span>HEAVY</span><span>MAX</span></footer></div>
-        {snapshot.phase === "placement" && <button className="ready-3d" onClick={() => engineRef.current?.confirmPlacement()}>배치 확정 <b>READY</b></button>}
-        <button className="leave-3d" onClick={returnLobby}>← 로비</button>
+        {snapshot.phase === "placement" && <button data-testid="confirm-placement" className="ready-3d" onClick={() => engineRef.current?.confirmPlacement()}>배치 확정 <b>READY</b></button>}
+        <button data-testid="leave-arena" className="leave-3d" onClick={returnLobby}>← 로비</button>
         <div className="input-help"><span>클릭 + 드래그: 반대로 당기기</span><span>Q / E: 회전</span><span>ESC: 조준 취소</span></div>
 
         {snapshot.phase === "result" && <div className={`result-3d ${snapshot.winner === "player" ? "win" : "loss"}`}><div><small>{snapshot.winner === "player" ? "ARENA SURVIVOR" : "FALLEN INTO THE RIFT"}</small><h2>{snapshot.winner === "player" ? "승리!" : "패배"}</h2><p>{snapshot.winner === "player" ? "마지막 돌이 3D 아레나 위에 남았습니다." : "심연의 군단이 판을 장악했습니다."}</p><button onClick={() => start(snapshot.count, "practice")}>다시 대전</button><button onClick={returnLobby}>로비로</button></div></div>}
