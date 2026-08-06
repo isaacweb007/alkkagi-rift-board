@@ -164,3 +164,28 @@ test("defines persistent profiles, level matching, and sandbox progression", asy
   assert.match(resultRoute, /sandbox_play_points/);
   assert.equal(JSON.parse(hosting).d1, "DB");
 });
+
+test("ships the real WebGL 3D arena engine", async () => {
+  const [page, component, engine, styles, packageJson] = await Promise.all([
+    readFile(new URL("../app/arena/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/arena/AlkkagiArena.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/arena/engine.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/arena/arena.css", import.meta.url), "utf8"),
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, /AlkkagiArena/);
+  assert.match(component, /3 VS 3 속전/);
+  assert.match(component, /5 VS 5 정규전/);
+  assert.match(component, /지옥 AI 위험도/);
+  assert.match(engine, /new THREE\.WebGLRenderer/);
+  assert.match(engine, /const FIXED_STEP = 1 \/ 120/);
+  assert.match(engine, /Math\.random\(\) < 0\.5 \? "player" : "enemy"/);
+  assert.match(engine, /private resolveCollision/);
+  assert.match(engine, /private ringOut/);
+  assert.match(engine, /BONUS SHOT/);
+  assert.match(engine, /private takeAiShot/);
+  assert.match(styles, /arena-modern-danger-v2\.png/);
+  assert.match(styles, /prefers-reduced-motion:reduce/);
+  assert.match(packageJson, /"three": "\^0\.179\.1"/);
+});
