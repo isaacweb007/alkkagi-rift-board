@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, readFile } from "node:fs/promises";
+import { access, readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 const projectRoot = new URL("../", import.meta.url);
@@ -40,6 +40,24 @@ test("server-renders the browser-safe 3D arena loader at the root URL", async ()
   assert.match(html, /BROWSER 3D ENGINE/);
   assert.doesNotMatch(html, /<iframe[^>]+src="\/ALKAGI_CONCEPT_BOOK\.html"/i);
   assert.doesNotMatch(html, /Building your site|react-loading-skeleton/i);
+});
+
+test("keeps Three.js safe when Cloudflare preloads the browser-only SSR chunk", async () => {
+  const assetsDirectory = new URL("../dist/server/ssr/assets/", import.meta.url);
+  const assetNames = await readdir(assetsDirectory);
+  const arenaAsset = assetNames.find((name) => /^AlkkagiArena-.*\.js$/.test(name));
+
+  assert.ok(arenaAsset, "the 3D arena SSR chunk should be present");
+  const code = await readFile(new URL(arenaAsset, assetsDirectory), "utf8");
+  const defaultManagerIndex = code.indexOf("new LoadingManager()");
+  const lazyControllerIndex = code.indexOf("Object.defineProperty(this, \"abortController\"");
+
+  assert.ok(defaultManagerIndex > 0, "Three.js should include its default loading manager");
+  assert.ok(lazyControllerIndex > 0, "AbortController should be initialized through a lazy getter");
+  assert.ok(
+    lazyControllerIndex < defaultManagerIndex,
+    "the lazy AbortController definition should protect the default manager",
+  );
 });
 
 test("ships the seven-language interactive concept book", async () => {
