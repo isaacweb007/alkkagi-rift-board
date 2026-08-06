@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Alkkagi3DEngine, type ArenaKind, type ArenaSnapshot, type AudioSettings, type MatchMode, type TeamTone } from "./engine";
 import { validateAndNormalizeReplay, type MatchReplay } from "./replay";
 
@@ -37,12 +37,27 @@ const AUDIO_CHANNELS: Array<{ key: "master" | "sfx" | "music"; label: string }> 
 
 const arenaLabels: Record<ArenaKind, { name: string; sub: string }> = {
   medieval: { name: "왕들의 용광로", sub: "LAVA CITADEL" },
-  modern: { name: "폭풍선 정상", sub: "THUNDER ROOFTOP" },
+  modern: { name: "시공의 경계", sub: "RIFT CONVERGENCE" },
   future: { name: "중력 우물", sub: "VOID STATION" },
 };
 
 function Pips({ alive, count, tone }: { alive: number; count: number; tone: TeamTone }) {
   return <span className={`arena-pips tone-${tone}`}>{Array.from({ length: count }, (_, index) => <i className={index < alive ? "" : "out"} key={index} />)}</span>;
+}
+
+function TeamRail({ side, alive, count, tone }: { side: "player" | "enemy"; alive: number; count: number; tone: TeamTone }) {
+  const portraitRow = side === "player" ? 0 : 1;
+  return <aside className={`team-rail ${side} tone-${tone}`} aria-label={`${side === "player" ? "나의" : "상대"} 생존 돌 ${alive}개`}>
+    <small>{side === "player" ? "YOUR SQUAD" : "RIVAL SQUAD"}</small>
+    <div className="rail-stones">
+      {Array.from({ length: count }, (_, index) => <i
+        className={`${index < alive ? "alive" : "out"} ${index === Math.max(0, alive - 1) ? "focus" : ""}`}
+        key={index}
+        style={{ backgroundPosition: `${(index % 5) * 25}% ${portraitRow * 100}%` }}
+      />)}
+    </div>
+    <b>{alive}<span>/{count}</span></b>
+  </aside>;
 }
 
 export default function AlkkagiArena() {
@@ -185,7 +200,7 @@ export default function AlkkagiArena() {
   };
 
   return (
-    <main className={`arena-app arena-${arena}`}>
+    <main className={`arena-app arena-${arena} screen-${screen}`}>
       <div className="arena-danger-backdrop" />
       <div className="webgl-stage" ref={mountRef} aria-label="WebGL 3D 알까기 경기장" />
       <div className="arena-vignette" />
@@ -225,6 +240,14 @@ export default function AlkkagiArena() {
       </section>}
 
       {screen === "match" && <section className="arena-match-ui">
+        <div className="rift-score" aria-label={`전력 균형: 나 ${snapshot.playerAlive}, 상대 ${snapshot.enemyAlive}`}>
+          <div className={`score-wing player tone-${snapshot.playerTone}`}><Pips alive={snapshot.playerAlive} count={snapshot.count} tone={snapshot.playerTone}/></div>
+          <div className="rift-core"><i /><span>{snapshot.active === "player" ? "YOU" : "AI"}</span></div>
+          <div className={`score-wing enemy tone-${snapshot.enemyTone}`}><Pips alive={snapshot.enemyAlive} count={snapshot.count} tone={snapshot.enemyTone}/></div>
+        </div>
+        <TeamRail side="player" alive={snapshot.playerAlive} count={snapshot.count} tone={snapshot.playerTone} />
+        <TeamRail side="enemy" alive={snapshot.enemyAlive} count={snapshot.count} tone={snapshot.enemyTone} />
+
         <div className={`team-hud player tone-${snapshot.playerTone}`}><div className="team-symbol">{snapshot.playerTone === "white" ? "○" : "●"}</div><div><small>YOU · LV {profile.level}</small><b>{snapshot.playerTone === "white" ? "WHITE STONES" : "BLACK STONES"}</b><Pips alive={snapshot.playerAlive} count={snapshot.count} tone={snapshot.playerTone}/></div></div>
         <div className="phase-hud"><small>{snapshot.replay ? "MATCH REPLAY" : snapshot.phase.toUpperCase()}</small><b>{snapshot.replay ? "REC" : snapshot.timer}</b><span>{snapshot.message}</span></div>
         <div className={`team-hud enemy tone-${snapshot.enemyTone}`}><div><small>HELL AI · LV {aiLevel}</small><b>{snapshot.enemyTone === "white" ? "WHITE STONES" : "BLACK STONES"}</b><Pips alive={snapshot.enemyAlive} count={snapshot.count} tone={snapshot.enemyTone}/></div><div className="team-symbol">{snapshot.enemyTone === "white" ? "○" : "●"}</div></div>
@@ -239,7 +262,16 @@ export default function AlkkagiArena() {
         <div className={`turn-ribbon ${snapshot.active === "player" ? "your" : "enemy"}`}>{snapshot.replay ? "DETERMINISTIC REPLAY" : snapshot.active === "player" ? "YOUR TURN" : "ENEMY TURN"}</div>
         {snapshot.bonus && <div className="bonus-3d"><small>RING-OUT COMBO</small><b>BONUS SHOT!</b></div>}
 
-        {!snapshot.replay && <div className="power-3d"><div><small>SHOT POWER</small><b>{snapshot.power}</b><span>/100</span></div><i><em style={{ width: `${snapshot.power}%` }} /></i><footer><span>CONTROL</span><span>HEAVY</span><span>MAX</span></footer></div>}
+        {!snapshot.replay && <div className="power-3d" style={{ "--shot-power": snapshot.power } as CSSProperties} aria-label={`발사 파워 ${snapshot.power} 퍼센트`}>
+          <div className="power-dial">
+            <div className="power-scale"><i /></div>
+            <div className="power-needle" />
+            <div className="power-hub" />
+            <strong>{snapshot.power}<span>%</span></strong>
+          </div>
+          <div className="power-reticle"><i /><b /></div>
+          <footer><span>CONTROL</span><span>HEAVY</span><span>MAX</span></footer>
+        </div>}
         {!snapshot.replay && snapshot.phase === "placement" && <button data-testid="confirm-placement" className="ready-3d" onClick={() => engineRef.current?.confirmPlacement()}>배치 확정 <b>READY</b></button>}
         <button data-testid="leave-arena" className="leave-3d" onClick={returnLobby}>← 로비</button>
         {!snapshot.replay && <div className="input-help"><span>클릭 + 드래그: 반대로 당기기</span><span>청록 링: EDGE GRIP ZONE</span><span>Q / E: 회전 · ESC: 취소</span></div>}

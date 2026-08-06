@@ -103,7 +103,7 @@ export class Alkkagi3DEngine {
   private emitSnapshot: (snapshot: ArenaSnapshot) => void;
   private onReplayReady: (replay: MatchReplay) => void;
   private scene = new THREE.Scene();
-  private camera = new THREE.PerspectiveCamera(43, 1, 0.1, 80);
+  private camera = new THREE.PerspectiveCamera(39, 1, 0.1, 80);
   private renderer: THREE.WebGLRenderer;
   private clock = new THREE.Clock();
   private accumulator = 0;
@@ -115,12 +115,18 @@ export class Alkkagi3DEngine {
   private boardPoint = new THREE.Vector3();
   private board: THREE.Mesh;
   private edgeRing: THREE.Mesh;
+  private teamEdgeBlue: THREE.Mesh;
+  private teamEdgeRed: THREE.Mesh;
   private gripRing: THREE.Mesh;
   private heritageRing: THREE.Mesh;
   private rosterTexture: THREE.Texture;
   private rosterReady = false;
   private decor = new THREE.Group();
   private aimLine: THREE.Line;
+  private pullLine: THREE.Line;
+  private aimArrow: THREE.Mesh;
+  private aimTargetRing: THREE.Mesh;
+  private selectionRing: THREE.Mesh;
   private hazardLight = new THREE.PointLight(0x2e89ff, 16, 18, 2);
   private keyLight = new THREE.SpotLight(0xd8ebff, 120, 35, Math.PI / 4, 0.6, 1.1);
   private stones: Stone[] = [];
@@ -191,8 +197,8 @@ export class Alkkagi3DEngine {
     this.rosterTexture.minFilter = THREE.LinearMipmapLinearFilter;
     this.rosterTexture.magFilter = THREE.LinearFilter;
 
-    this.camera.position.set(0, 10.1, 12.4);
-    this.camera.lookAt(0, 0.25, 0);
+    this.camera.position.set(0, 6.5, 12);
+    this.camera.lookAt(0, 0.25, 1.2);
     this.scene.fog = new THREE.FogExp2(0x03101c, 0.026);
     this.scene.add(new THREE.HemisphereLight(0xb8ddff, 0x160b10, 2.4));
     this.keyLight.position.set(-5, 10, 7);
@@ -215,6 +221,21 @@ export class Alkkagi3DEngine {
     this.edgeRing.rotation.x = Math.PI / 2;
     this.edgeRing.position.y = 0.32;
     this.scene.add(this.edgeRing);
+    this.teamEdgeBlue = new THREE.Mesh(
+      new THREE.TorusGeometry(BOARD_RADIUS + 0.015, 0.035, 10, 72, Math.PI),
+      new THREE.MeshBasicMaterial({ color: 0x36cfff, transparent: true, opacity: 0.82, depthWrite: false }),
+    );
+    this.teamEdgeBlue.rotation.x = Math.PI / 2;
+    this.teamEdgeBlue.rotation.z = Math.PI;
+    this.teamEdgeBlue.position.y = 0.405;
+    this.scene.add(this.teamEdgeBlue);
+    this.teamEdgeRed = new THREE.Mesh(
+      new THREE.TorusGeometry(BOARD_RADIUS + 0.015, 0.035, 10, 72, Math.PI),
+      new THREE.MeshBasicMaterial({ color: 0xff3f58, transparent: true, opacity: 0.82, depthWrite: false }),
+    );
+    this.teamEdgeRed.rotation.x = Math.PI / 2;
+    this.teamEdgeRed.position.y = 0.405;
+    this.scene.add(this.teamEdgeRed);
     this.heritageRing = new THREE.Mesh(
       new THREE.TorusGeometry(BOARD_RADIUS - 0.19, 0.13, 12, 128),
       new THREE.MeshStandardMaterial({ color: 0x8f6330, emissive: 0x2a1608, emissiveIntensity: 0.45, metalness: 0.88, roughness: 0.28 }),
@@ -235,6 +256,32 @@ export class Alkkagi3DEngine {
     this.aimLine.computeLineDistances();
     this.aimLine.visible = false;
     this.scene.add(this.aimLine);
+    this.pullLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
+      new THREE.LineBasicMaterial({ color: 0x60e7ff, transparent: true, opacity: 0.9 }),
+    );
+    this.pullLine.visible = false;
+    this.scene.add(this.pullLine);
+    this.aimArrow = new THREE.Mesh(
+      new THREE.ConeGeometry(0.15, 0.38, 12),
+      new THREE.MeshBasicMaterial({ color: 0x4ce9ff, transparent: true, opacity: 0.96 }),
+    );
+    this.aimArrow.visible = false;
+    this.scene.add(this.aimArrow);
+    this.aimTargetRing = new THREE.Mesh(
+      new THREE.TorusGeometry(STONE_RADIUS * 1.13, 0.055, 10, 56),
+      new THREE.MeshBasicMaterial({ color: 0x4ce9ff, transparent: true, opacity: 0.88, depthWrite: false }),
+    );
+    this.aimTargetRing.rotation.x = Math.PI / 2;
+    this.aimTargetRing.visible = false;
+    this.scene.add(this.aimTargetRing);
+    this.selectionRing = new THREE.Mesh(
+      new THREE.TorusGeometry(STONE_RADIUS * 1.28, 0.055, 10, 64),
+      new THREE.MeshBasicMaterial({ color: 0x4ce9ff, transparent: true, opacity: 0.9, depthWrite: false }),
+    );
+    this.selectionRing.rotation.x = Math.PI / 2;
+    this.selectionRing.visible = false;
+    this.scene.add(this.selectionRing);
     this.scene.add(this.decor);
     this.buildDecor();
 
@@ -268,11 +315,11 @@ export class Alkkagi3DEngine {
     const side = materials[0] as THREE.MeshStandardMaterial;
     const top = materials[1] as THREE.MeshStandardMaterial;
     side.color.setHex(colors.board);
-    top.color.setHex(0xffffff);
+    top.color.setHex(kind === "modern" ? 0x89929c : kind === "medieval" ? 0xa79079 : 0x8e82a2);
     top.emissive.setHex(colors.edge);
     top.emissiveIntensity = 0.035;
-    (this.edgeRing.material as THREE.MeshStandardMaterial).color.setHex(colors.edge);
-    (this.edgeRing.material as THREE.MeshStandardMaterial).emissive.setHex(colors.edge);
+    (this.edgeRing.material as THREE.MeshStandardMaterial).color.setHex(kind === "modern" ? 0xc08b42 : colors.edge);
+    (this.edgeRing.material as THREE.MeshStandardMaterial).emissive.setHex(kind === "modern" ? 0x5b3515 : colors.edge);
     (this.gripRing.material as THREE.MeshBasicMaterial).color.setHex(colors.edge);
     this.hazardLight.color.setHex(colors.hazard);
     if (this.scene.fog instanceof THREE.FogExp2) this.scene.fog.color.setHex(colors.fog);
@@ -768,6 +815,10 @@ export class Alkkagi3DEngine {
     this.stones = [];
     this.selected = null;
     this.aimLine.visible = false;
+    this.pullLine.visible = false;
+    this.aimArrow.visible = false;
+    this.aimTargetRing.visible = false;
+    this.selectionRing.visible = false;
   }
 
   private selectStone(stone: Stone | null) {
@@ -777,6 +828,12 @@ export class Alkkagi3DEngine {
       material.emissiveIntensity = current === stone ? 0.42 : current.tone === "white" ? 0.025 : 0.075;
     }
     this.selected = stone;
+    this.selectionRing.visible = Boolean(stone?.alive);
+    if (stone) {
+      this.selectionRing.position.set(stone.group.position.x, 0.59, stone.group.position.z);
+      const selectionMaterial = this.selectionRing.material as THREE.MeshBasicMaterial;
+      selectionMaterial.color.setHex(stone.owner === "player" ? 0x4ce9ff : 0xff405b);
+    }
     this.emit();
   }
 
@@ -845,6 +902,9 @@ export class Alkkagi3DEngine {
     this.aimPoint.copy(this.boardPoint);
     this.power = 0;
     this.aimLine.visible = true;
+    this.pullLine.visible = true;
+    this.aimArrow.visible = true;
+    this.aimTargetRing.visible = true;
     this.renderer.domElement.setPointerCapture(event.pointerId);
   };
 
@@ -864,13 +924,26 @@ export class Alkkagi3DEngine {
     const precision = this.selected.character.stats[3];
     const skillGuide = this.selected.character.skill === "prismAim" ? 1.32 : this.selected.character.skill === "beatBank" ? 1.16 : 1;
     const guideLength = (1.4 + precision * 0.38) * skillGuide;
+    const guideEnd = new THREE.Vector3(stonePosition.x + direction.x * guideLength, 0.79, stonePosition.z + direction.y * guideLength);
     const points = [
       new THREE.Vector3(stonePosition.x, 0.79, stonePosition.z),
-      new THREE.Vector3(stonePosition.x + direction.x * guideLength, 0.79, stonePosition.z + direction.y * guideLength),
+      guideEnd,
     ];
     this.aimLine.geometry.setFromPoints(points);
     this.aimLine.computeLineDistances();
-    (this.aimLine.material as THREE.LineDashedMaterial).color.setHex(this.power >= 90 ? 0xff3c58 : this.power >= 70 ? 0xffd36a : 0x4ce9ff);
+    this.pullLine.geometry.setFromPoints([
+      new THREE.Vector3(stonePosition.x, 0.73, stonePosition.z),
+      new THREE.Vector3(this.aimPoint.x, 0.73, this.aimPoint.z),
+    ]);
+    const guideColor = this.power >= 90 ? 0xff3c58 : this.power >= 70 ? 0xffd36a : 0x4ce9ff;
+    (this.aimLine.material as THREE.LineDashedMaterial).color.setHex(guideColor);
+    (this.pullLine.material as THREE.LineBasicMaterial).color.setHex(guideColor);
+    (this.aimArrow.material as THREE.MeshBasicMaterial).color.setHex(guideColor);
+    (this.aimTargetRing.material as THREE.MeshBasicMaterial).color.setHex(guideColor);
+    this.aimArrow.position.copy(guideEnd);
+    this.aimArrow.position.y = 0.78;
+    this.aimArrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(direction.x, 0, direction.y));
+    this.aimTargetRing.position.set(guideEnd.x, 0.6, guideEnd.z);
     this.emit();
   };
 
@@ -883,6 +956,9 @@ export class Alkkagi3DEngine {
     this.updatePointer(event);
     this.aiming = false;
     this.aimLine.visible = false;
+    this.pullLine.visible = false;
+    this.aimArrow.visible = false;
+    this.aimTargetRing.visible = false;
     if (this.power < 5) {
       this.power = 0;
       this.message = "조금 더 뒤로 당겨 힘을 주세요";
@@ -898,6 +974,9 @@ export class Alkkagi3DEngine {
     this.draggingPlacement = false;
     this.aiming = false;
     this.aimLine.visible = false;
+    this.pullLine.visible = false;
+    this.aimArrow.visible = false;
+    this.aimTargetRing.visible = false;
     this.power = 0;
     this.emit();
   };
@@ -1028,7 +1107,7 @@ export class Alkkagi3DEngine {
     this.cameraShake = Math.max(this.cameraShake, 0.28);
     this.spawnImpact(stone.group.position.clone(), stone.character.element, 4.5);
     this.playFall(stone);
-    this.message = stone.owner === "enemy" ? `${stone.character.name} RING-OUT!` : `${stone.character.name}이 심연으로 추락!`;
+    this.message = stone.owner === "enemy" ? `${stone.character.name} RING-OUT!` : `${stone.character.name} · 심연 추락!`;
     this.emit();
   }
 
@@ -1366,15 +1445,24 @@ export class Alkkagi3DEngine {
     }
     this.updateTimer(performance.now());
     const targetX = 0;
-    const targetY = 10.1;
-    const targetZ = 12.4;
+    const targetY = 6.5;
+    const targetZ = 12;
     if (this.cameraShake > 0.001) {
       this.camera.position.set(targetX + THREE.MathUtils.randFloatSpread(this.cameraShake), targetY + THREE.MathUtils.randFloatSpread(this.cameraShake * 0.45), targetZ + THREE.MathUtils.randFloatSpread(this.cameraShake));
       this.cameraShake *= Math.pow(0.025, dt);
     } else this.camera.position.lerp(new THREE.Vector3(targetX, targetY, targetZ), 0.12);
-    this.camera.lookAt(0, 0.2, 0);
+    this.camera.lookAt(0, 0.2, 1.2);
     this.edgeRing.rotation.z += dt * 0.08;
     this.gripRing.rotation.z -= dt * 0.025;
+    this.teamEdgeBlue.rotation.z += dt * 0.008;
+    this.teamEdgeRed.rotation.z += dt * 0.008;
+    if (this.selected?.alive) {
+      this.selectionRing.visible = true;
+      this.selectionRing.position.set(this.selected.group.position.x, 0.59, this.selected.group.position.z);
+      const pulse = 1 + Math.sin(performance.now() * 0.006) * 0.055;
+      this.selectionRing.scale.setScalar(pulse);
+      this.selectionRing.rotation.z -= dt * 0.8;
+    } else this.selectionRing.visible = false;
     this.renderer.render(this.scene, this.camera);
   };
 }

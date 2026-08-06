@@ -121,6 +121,7 @@ test("includes the complete visual concept asset set", async () => {
     "arena-modern-danger-v2.png",
     "arena-future-danger-v2.png",
     "ui-battle-core-v2.png",
+    "arena-rift-convergence-v3.png",
   ];
 
   await Promise.all(
@@ -220,9 +221,14 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(engine, /designReference = "\/assets\/board-topdown\.png"/);
   assert.match(engine, /setAudioSettings/);
   assert.match(engine, /private tryRescue/);
+  assert.match(engine, /aimTargetRing/);
+  assert.match(engine, /selectionRing/);
   assert.match(component, /WHITE STONES/);
   assert.match(component, /BLACK STONES/);
   assert.match(component, /사운드 믹서/);
+  assert.match(component, /rift-score/);
+  assert.match(component, /TeamRail/);
+  assert.match(component, /power-dial/);
   assert.match(styles, /audio-mixer/);
   for (const character of ["몽돌", "브릭 경", "루나벨", "핀치", "번개배달 모모", "비트캣", "세이프티 박사", "제로-볼트", "코멧 키드", "오로라-8"]) {
     assert.match(engine, new RegExp(character));
@@ -236,6 +242,8 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(core, /export function resolveShotOutcome/);
   assert.match(core, /fixedStep: 1 \/ 120/);
   assert.match(styles, /arena-modern-danger-v2\.png/);
+  assert.match(styles, /arena-rift-convergence-v3\.png/);
+  assert.match(styles, /power-needle/);
   assert.match(styles, /selected-concept-portrait/);
   assert.match(styles, /prefers-reduced-motion:reduce/);
   assert.match(packageJson, /"three": "\^0\.179\.1"/);

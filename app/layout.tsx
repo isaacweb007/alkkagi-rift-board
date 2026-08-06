@@ -10,12 +10,12 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     metadataBase: new URL(origin),
-    title: "알까기: 시공의 판 — Visual Concept Bible",
+    title: "ALKKAGI: RIFT BOARD — 3D Battle Arena",
     description:
-      "Characters, arenas, board, story, rules, UI, audio, items, progression, and Web3 guardrails for a premium 3D Alkkagi PC web game.",
+      "Pull, aim, and knock rival character stones into the abyss in a cinematic WebGL Alkkagi arena.",
     openGraph: {
       title: "ALKKAGI: RIFT BOARD",
-      description: "A seven-language visual concept bible for a premium 3D physics battle game.",
+      description: "A cinematic 3D character Alkkagi battle above the Rift Convergence.",
       url: origin,
       images: [{ url: `${origin}/og.png`, width: 1672, height: 941, alt: "ALKKAGI: Rift Board key art" }],
       type: "website",
@@ -23,7 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
     twitter: {
       card: "summary_large_image",
       title: "ALKKAGI: RIFT BOARD",
-      description: "A seven-language visual concept bible for a premium 3D physics battle game.",
+      description: "A cinematic 3D character Alkkagi battle above the Rift Convergence.",
       images: [`${origin}/og.png`],
     },
   };
