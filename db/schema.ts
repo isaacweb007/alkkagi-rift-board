@@ -41,3 +41,12 @@ export const matches = sqliteTable("matches", {
   index("matches_player_a_idx").on(table.playerA, table.updatedAt),
   index("matches_player_b_idx").on(table.playerB, table.updatedAt),
 ]);
+
+export const resultReceipts = sqliteTable("result_receipts", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  processed: integer("processed").notNull().default(0),
+  createdAt: integer("created_at").notNull(),
+}, (table) => [
+  index("result_receipts_user_idx").on(table.userId, table.createdAt),
+]);

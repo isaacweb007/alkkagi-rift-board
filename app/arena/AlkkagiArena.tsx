@@ -34,6 +34,7 @@ export default function AlkkagiArena() {
   const mountRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<Alkkagi3DEngine | null>(null);
   const resultSentRef = useRef<string | null>(null);
+  const matchReceiptRef = useRef<string>("");
   const [screen, setScreen] = useState<"lobby" | "match">("lobby");
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [arena, setArena] = useState<ArenaKind>("modern");
@@ -67,7 +68,7 @@ export default function AlkkagiArena() {
 
   useEffect(() => {
     if (snapshot.phase !== "result" || !snapshot.winner) return;
-    const resultKey = `${snapshot.winner}-${snapshot.count}-${snapshot.message}`;
+    const resultKey = matchReceiptRef.current || `${snapshot.winner}-${snapshot.count}-${snapshot.message}`;
     if (resultSentRef.current === resultKey) return;
     resultSentRef.current = resultKey;
     const win = snapshot.winner === "player";
@@ -80,7 +81,7 @@ export default function AlkkagiArena() {
     fetch("/api/game/result", {
       method: "POST",
       headers: { "content-type": "application/json", "x-alkkagi-guest": profile.id },
-      body: JSON.stringify({ mode: "practice", count: snapshot.count, win, practiceLevel: aiLevel }),
+      body: JSON.stringify({ mode: "practice", count: snapshot.count, win, practiceLevel: aiLevel, resultId: resultKey }),
     }).then((response) => response.ok ? response.json() : null).then((payload) => {
       if (!payload?.profile) return;
       const next = { id: payload.profile.id, level: payload.profile.level, xp: payload.profile.xp, points: payload.profile.points };
@@ -91,6 +92,7 @@ export default function AlkkagiArena() {
 
   const start = (count: 3 | 5, mode: MatchMode) => {
     resultSentRef.current = null;
+    matchReceiptRef.current = crypto.randomUUID();
     setScreen("match");
     engineRef.current?.startMatch({ count, mode, arena, aiLevel });
   };

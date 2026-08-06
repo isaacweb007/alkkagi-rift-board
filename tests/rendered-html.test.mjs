@@ -162,6 +162,8 @@ test("defines persistent profiles, level matching, and sandbox progression", asy
   assert.match(queueRoute, /profile\.level - 2/);
   assert.match(queueRoute, /Math\.random\(\) < 0\.5/);
   assert.match(resultRoute, /sandbox_play_points/);
+  assert.match(resultRoute, /result_receipts/);
+  assert.match(resultRoute, /duplicate: true/);
   assert.equal(JSON.parse(hosting).d1, "DB");
 });
 
