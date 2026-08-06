@@ -253,7 +253,7 @@ export default function AlkkagiArena() {
         <TeamRail side="enemy" alive={snapshot.enemyAlive} count={snapshot.count} tone={snapshot.enemyTone} />
 
         <div className={`team-hud player tone-${snapshot.playerTone}`}><div className="team-symbol">{snapshot.playerTone === "white" ? "○" : "●"}</div><div><small>YOU · LV {profile.level}</small><b>{snapshot.playerTone === "white" ? "WHITE STONES" : "BLACK STONES"}</b><Pips alive={snapshot.playerAlive} count={snapshot.count} tone={snapshot.playerTone}/></div></div>
-        <div className="phase-hud"><small>{snapshot.replay ? "MATCH REPLAY" : snapshot.phase.toUpperCase()}</small><b>{snapshot.replay ? "REC" : snapshot.timer}</b><span>{snapshot.message}</span></div>
+        <div className="phase-hud" aria-live="polite"><small>{snapshot.replay ? "MATCH REPLAY" : snapshot.phase.toUpperCase()}</small><b>{snapshot.replay ? "REC" : snapshot.timer}</b><span>{snapshot.message}</span></div>
         <div className={`team-hud enemy tone-${snapshot.enemyTone}`}><div><small>HELL AI · LV {aiLevel}</small><b>{snapshot.enemyTone === "white" ? "WHITE STONES" : "BLACK STONES"}</b><Pips alive={snapshot.enemyAlive} count={snapshot.count} tone={snapshot.enemyTone}/></div><div className="team-symbol">{snapshot.enemyTone === "white" ? "○" : "●"}</div></div>
 
         <aside className="stone-readout">

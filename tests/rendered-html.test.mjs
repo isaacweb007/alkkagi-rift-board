@@ -221,6 +221,9 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(artDirection, /arena-modern-danger-v2\.png/);
   assert.match(engine, /new THREE\.SphereGeometry\(STONE_RADIUS/);
   assert.match(engine, /private createStoneSurfaceTexture/);
+  assert.match(engine, /private createFaceTexture/);
+  assert.match(engine, /characterFace/);
+  assert.match(engine, /contactShadow/);
   assert.match(engine, /applyEdgeGrip/);
   assert.match(engine, /designReference = GOLDEN_ART\.boardReference/);
   assert.match(engine, /setAudioSettings/);
@@ -233,6 +236,7 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(component, /rift-score/);
   assert.match(component, /TeamRail/);
   assert.match(component, /power-dial/);
+  assert.match(component, /aria-live="polite"/);
   assert.match(styles, /audio-mixer/);
   for (const character of ["몽돌", "브릭 경", "루나벨", "핀치", "번개배달 모모", "비트캣", "세이프티 박사", "제로-볼트", "코멧 키드", "오로라-8"]) {
     assert.match(engine, new RegExp(character));

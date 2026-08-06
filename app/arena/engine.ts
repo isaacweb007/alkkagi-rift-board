@@ -443,7 +443,7 @@ export class Alkkagi3DEngine {
         const materials = Array.isArray(object.material) ? object.material : [object.material];
         materials.forEach((material) => {
           const map = (material as THREE.MeshStandardMaterial).map;
-          if (map?.userData.characterPortrait || map?.userData.gameAsset) map.dispose();
+          if (map?.userData.characterPortrait || map?.userData.characterFace || map?.userData.gameAsset) map.dispose();
           material.dispose();
         });
       }
@@ -578,39 +578,32 @@ export class Alkkagi3DEngine {
     teamBand.position.y = -0.105;
     teamBand.castShadow = true;
     group.add(teamBand);
-    const rimMaterial = new THREE.MeshStandardMaterial({ color: character.accent, emissive: character.accent, emissiveIntensity: 1.3, metalness: 0.65, roughness: 0.22 });
+    const rimMaterial = new THREE.MeshPhysicalMaterial({ color: character.accent, emissive: character.accent, emissiveIntensity: 0.34, metalness: 0.78, roughness: 0.2, clearcoat: 0.42, clearcoatRoughness: 0.18 });
     const rim = new THREE.Mesh(new THREE.TorusGeometry(STONE_RADIUS * 0.88, 0.035, 10, 48), rimMaterial);
     rim.rotation.x = Math.PI / 2;
     rim.position.y = -0.055;
     group.add(rim);
-    const eyeWhiteMaterial = new THREE.MeshPhysicalMaterial({ color: 0xf4f7ff, roughness: 0.22, metalness: 0.02, clearcoat: 0.65 });
-    const faceMaterial = new THREE.MeshStandardMaterial({ color: 0x080a0f, roughness: 0.42, metalness: 0.1 });
-    for (const x of [-0.14, 0.14]) {
-      const eyeOutline = new THREE.Mesh(new THREE.SphereGeometry(0.122, 28, 16), faceMaterial);
-      eyeOutline.position.set(x, 0.15, 0.383);
-      eyeOutline.scale.set(1.08, character.demon ? 0.7 : 0.9, 0.38);
-      group.add(eyeOutline);
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.105, 24, 14), eyeWhiteMaterial);
-      eye.position.set(x, 0.15, 0.405);
-      eye.scale.set(1, character.demon ? 0.58 : 0.78, 0.36);
-      group.add(eye);
-      const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.042, 18, 12), faceMaterial);
-      pupil.position.set(x + (x < 0 ? 0.018 : -0.018), 0.145, 0.486);
-      pupil.scale.z = 0.42;
-      group.add(pupil);
-      const eyeGlint = new THREE.Mesh(new THREE.SphereGeometry(0.012, 10, 8), eyeWhiteMaterial);
-      eyeGlint.position.set(x + (x < 0 ? 0.004 : -0.032), 0.164, 0.51);
-      group.add(eyeGlint);
-      const brow = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.035, 0.035), faceMaterial);
-      brow.position.set(x, 0.248, 0.486);
-      brow.rotation.z = x < 0 ? -0.2 : 0.2;
-      group.add(brow);
+    const contactShadow = new THREE.Mesh(
+      new THREE.CircleGeometry(STONE_RADIUS * 0.94, 48),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false }),
+    );
+    contactShadow.rotation.x = -Math.PI / 2;
+    contactShadow.position.y = -0.267;
+    contactShadow.renderOrder = 1;
+    group.add(contactShadow);
+    const faceGeometry = new THREE.PlaneGeometry(0.7, 0.36, 16, 8);
+    const facePositions = faceGeometry.attributes.position as THREE.BufferAttribute;
+    for (let vertex = 0; vertex < facePositions.count; vertex += 1) {
+      const x = facePositions.getX(vertex) / 0.35;
+      const y = facePositions.getY(vertex) / 0.18;
+      facePositions.setZ(vertex, -0.14 * x * x - 0.022 * y * y);
     }
-    const mouthCurve = new THREE.CatmullRomCurve3(character.demon
-      ? [new THREE.Vector3(-0.08, 0.06, 0.495), new THREE.Vector3(0, 0.025, 0.507), new THREE.Vector3(0.08, 0.057, 0.495)]
-      : [new THREE.Vector3(-0.068, 0.055, 0.497), new THREE.Vector3(0, 0.025, 0.508), new THREE.Vector3(0.068, 0.055, 0.497)]);
-    const mouth = new THREE.Mesh(new THREE.TubeGeometry(mouthCurve, 12, 0.014, 7, false), faceMaterial);
-    group.add(mouth);
+    faceGeometry.computeVertexNormals();
+    const faceTexture = this.createFaceTexture(character);
+    const face = new THREE.Mesh(faceGeometry, new THREE.MeshBasicMaterial({ map: faceTexture, transparent: true, alphaTest: 0.035, depthWrite: false, toneMapped: false }));
+    face.position.set(0, 0.145, 0.487);
+    face.renderOrder = 3;
+    group.add(face);
     this.addAccessory(group, character, rimMaterial);
     group.traverse((object) => { object.userData.stoneId = `${owner}-${index}`; });
     this.scene.add(group);
@@ -632,9 +625,84 @@ export class Alkkagi3DEngine {
     };
   }
 
+  private createFaceTexture(character: Character): THREE.CanvasTexture {
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 256;
+    const context = canvas.getContext("2d")!;
+    const accent = new THREE.Color(character.accent).getStyle();
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.lineJoin = "round";
+    context.lineCap = "round";
+
+    const drawEye = (centerX: number, rotation: number, gaze: number) => {
+      context.save();
+      context.translate(centerX, 112);
+      context.rotate(rotation);
+      context.fillStyle = "#07090d";
+      context.beginPath();
+      context.ellipse(0, 0, 78, character.demon ? 45 : 50, 0, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = "#f7f5ed";
+      context.beginPath();
+      context.ellipse(0, 4, 65, character.demon ? 33 : 38, 0, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = accent;
+      context.beginPath();
+      context.arc(gaze, 8, 18, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = "#080a0f";
+      context.beginPath();
+      context.arc(gaze, 8, 11, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = "#ffffff";
+      context.beginPath();
+      context.arc(gaze - 4, 3, 4.5, 0, Math.PI * 2);
+      context.fill();
+      context.restore();
+    };
+
+    drawEye(154, -0.055, 12);
+    drawEye(358, 0.055, -12);
+    context.fillStyle = "#07090d";
+    context.beginPath();
+    context.moveTo(70, 42);
+    context.lineTo(226, 78);
+    context.lineTo(218, 101);
+    context.lineTo(64, 65);
+    context.closePath();
+    context.fill();
+    context.beginPath();
+    context.moveTo(442, 42);
+    context.lineTo(286, 78);
+    context.lineTo(294, 101);
+    context.lineTo(448, 65);
+    context.closePath();
+    context.fill();
+    context.strokeStyle = "#080a0f";
+    context.lineWidth = character.demon ? 12 : 10;
+    context.beginPath();
+    if (character.demon) {
+      context.moveTo(218, 204);
+      context.quadraticCurveTo(264, 226, 310, 196);
+    } else {
+      context.moveTo(222, 196);
+      context.quadraticCurveTo(256, 222, 290, 196);
+    }
+    context.stroke();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.magFilter = THREE.LinearFilter;
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.userData.characterFace = true;
+    return texture;
+  }
+
   private addAccessory(group: THREE.Group, character: Character, material: THREE.Material) {
     const accent = () => material.clone();
     const dark = () => new THREE.MeshStandardMaterial({ color: 0x151924, metalness: 0.8, roughness: 0.25 });
+    const gold = () => new THREE.MeshPhysicalMaterial({ color: 0xb77a2f, emissive: 0x2f1605, emissiveIntensity: 0.2, metalness: 0.88, roughness: 0.2, clearcoat: 0.35 });
     const add = (mesh: THREE.Mesh, x: number, y: number, z: number) => {
       mesh.position.set(x, y, z);
       mesh.castShadow = true;
@@ -668,11 +736,11 @@ export class Alkkagi3DEngine {
     }
 
     if (character.style === "clockwork") {
-      const monocle = add(new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.032, 10, 32), accent()), 0.18, 0.21, 0.38);
+      const monocle = add(new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.032, 10, 32), gold()), 0.18, 0.21, 0.38);
       monocle.rotation.z = -0.08;
       add(new THREE.Mesh(new THREE.SphereGeometry(0.105, 20, 14), new THREE.MeshPhysicalMaterial({ color: 0x71eaff, transparent: true, opacity: 0.52, metalness: 0.1, roughness: 0.08 })), 0.18, 0.21, 0.37);
-      add(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.32, 0.08), accent()), 0, 0.49, -0.05);
-      const key = add(new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.045, 8, 24), accent()), 0, 0.69, -0.05);
+      add(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.32, 0.08), gold()), 0, 0.49, -0.05);
+      const key = add(new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.045, 8, 24), gold()), 0, 0.69, -0.05);
       key.rotation.x = Math.PI / 2;
       return;
     }
@@ -712,6 +780,8 @@ export class Alkkagi3DEngine {
     }
 
     if (character.style === "crystal") {
+      const crownBand = add(new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.035, 10, 48), gold()), 0, 0.33, 0);
+      crownBand.rotation.x = Math.PI / 2;
       const crownGem = add(new THREE.Mesh(new THREE.OctahedronGeometry(0.145), accent()), 0, 0.51, 0.03);
       crownGem.scale.y = 1.5;
       for (let index = 0; index < 6; index += 1) {
@@ -748,7 +818,7 @@ export class Alkkagi3DEngine {
           const materials = Array.isArray(object.material) ? object.material : [object.material];
           materials.forEach((material) => {
             const map = (material as THREE.MeshStandardMaterial).map;
-            if (map?.userData.characterPortrait) map.dispose();
+            if (map?.userData.characterPortrait || map?.userData.characterFace) map.dispose();
             material.dispose();
           });
         }
@@ -767,7 +837,7 @@ export class Alkkagi3DEngine {
     for (const current of this.stones) {
       const body = current.group.children[0] as THREE.Mesh;
       const material = body.material as THREE.MeshPhysicalMaterial;
-      material.emissiveIntensity = current === stone ? 0.42 : current.tone === "white" ? 0.025 : 0.075;
+      material.emissiveIntensity = current === stone ? 0.12 : current.tone === "white" ? 0.01 : 0.014;
     }
     this.selected = stone;
     this.selectionRing.visible = Boolean(stone?.alive);
@@ -1034,6 +1104,7 @@ export class Alkkagi3DEngine {
       first.lastImpact = second.lastImpact = now;
       const position = new THREE.Vector3((first.group.position.x + second.group.position.x) / 2, 0.66, (first.group.position.z + second.group.position.z) / 2);
       const element = first.velocity.length() >= second.velocity.length() ? first.character.element : second.character.element;
+      this.cameraShake = Math.max(this.cameraShake, Math.min(0.12, collision.impulse * 0.018));
       this.spawnImpact(position, element, collision.impulse);
     }
   }
@@ -1168,6 +1239,13 @@ export class Alkkagi3DEngine {
 
   private spawnImpact(position: THREE.Vector3, element: string, strength: number) {
     const color = this.elementColor(element);
+    const impactFlash = new THREE.Mesh(
+      new THREE.SphereGeometry(0.12 + Math.min(strength, 5) * 0.018, 20, 12),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending }),
+    );
+    impactFlash.position.copy(position);
+    this.scene.add(impactFlash);
+    this.particles.push({ mesh: impactFlash, velocity: new THREE.Vector3(0, 0.18, 0), life: 0.18, maxLife: 0.18 });
     const count = Math.min(26, 8 + Math.floor(strength * 2.4));
     for (let index = 0; index < count; index += 1) {
       const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.025 + Math.random() * 0.045, 0), new THREE.MeshBasicMaterial({ color, transparent: true }));
