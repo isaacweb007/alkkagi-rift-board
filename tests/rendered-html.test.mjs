@@ -44,8 +44,17 @@ test("server-renders the concept-book shell", async () => {
 test("ships the seven-language interactive concept book", async () => {
   const html = await readFile(conceptBookUrl, "utf8");
 
+  const translationMatch = html.match(
+    /const T\s*=\s*({[\s\S]*?});\s*const characterStats/,
+  );
+  assert.ok(translationMatch, "translation object should be present");
+  const translations = new Function(`return (${translationMatch[1]})`)();
+
   for (const locale of ["ko", "en", "vi", "zh", "ja", "id", "hi"]) {
     assert.match(html, new RegExp(`\\b${locale}:\\s*\\{`));
+    assert.equal(translations[locale].rules.core.length, 4);
+    assert.equal(translations[locale].rules.flow.length, 4);
+    assert.match(translations[locale].audio.voiceTitle, /.+/);
   }
 
   for (const section of [
@@ -65,8 +74,15 @@ test("ships the seven-language interactive concept book", async () => {
 
   assert.match(html, /const characterStats\s*=\s*\[/);
   assert.match(html, /function renderCharacters\(\)/);
+  assert.match(html, /rules\.core\.map/);
+  assert.match(html, /BONUS SHOT/);
+  assert.match(html, /ui-battle-core-v2\.png/);
   assert.match(html, /prefers-reduced-motion:\s*reduce/);
   assert.match(html, /aria-label="Enlarge board image"/);
+
+  for (const [, script] of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) {
+    assert.doesNotThrow(() => new Function(script));
+  }
 });
 
 test("includes the complete visual concept asset set", async () => {
@@ -81,6 +97,10 @@ test("includes the complete visual concept asset set", async () => {
     "ui-battle.png",
     "ui-collection.png",
     "items-skills.png",
+    "arena-medieval-danger-v2.png",
+    "arena-modern-danger-v2.png",
+    "arena-future-danger-v2.png",
+    "ui-battle-core-v2.png",
   ];
 
   await Promise.all(
