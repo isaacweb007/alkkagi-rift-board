@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { calculateLaunchVelocity, integrateBody, isRingOut, MATCH_RULES, resolveShotOutcome, solveCircleCollision } from "./core";
+import { createReplay, type MatchReplay, type ReplayShot } from "./replay";
 
 export type ArenaKind = "medieval" | "modern" | "future";
 export type MatchMode = "practice" | "ranked";
@@ -22,6 +23,7 @@ export type ArenaSnapshot = {
   bonus: boolean;
   winner: Owner | null;
   message: string;
+  replay: boolean;
 };
 
 type MatchConfig = { count: 3 | 5; mode: MatchMode; arena: ArenaKind; aiLevel: number };
@@ -73,6 +75,7 @@ const FIXED_STEP = MATCH_RULES.fixedStep;
 export class Alkkagi3DEngine {
   private container: HTMLDivElement;
   private emitSnapshot: (snapshot: ArenaSnapshot) => void;
+  private onReplayReady: (replay: MatchReplay) => void;
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(43, 1, 0.1, 80);
   private renderer: THREE.WebGLRenderer;
@@ -119,10 +122,17 @@ export class Alkkagi3DEngine {
   private sound = true;
   private audio: AudioContext | null = null;
   private disposed = false;
+  private replayMode = false;
+  private replayQueue: ReplayShot[] = [];
+  private replayShotNumber = 0;
+  private replayTotalShots = 0;
+  private replayExpectedWinner: Owner | null = null;
+  private currentReplay: MatchReplay | null = null;
 
-  constructor(container: HTMLDivElement, emitSnapshot: (snapshot: ArenaSnapshot) => void) {
+  constructor(container: HTMLDivElement, emitSnapshot: (snapshot: ArenaSnapshot) => void, onReplayReady: (replay: MatchReplay) => void = () => {}) {
     this.container = container;
     this.emitSnapshot = emitSnapshot;
+    this.onReplayReady = onReplayReady;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(0x000000, 0);
@@ -198,6 +208,9 @@ export class Alkkagi3DEngine {
 
   startDemo() {
     this.token += 1;
+    this.replayMode = false;
+    this.replayQueue = [];
+    this.currentReplay = null;
     this.phase = "demo";
     this.message = "3D ENGINE READY";
     this.winner = null;
@@ -213,8 +226,20 @@ export class Alkkagi3DEngine {
     this.count = config.count;
     this.aiLevel = config.aiLevel;
     this.setArena(config.arena);
+    this.replayMode = false;
+    this.replayQueue = [];
+    this.replayShotNumber = 0;
+    this.replayTotalShots = 0;
+    this.replayExpectedWinner = null;
     this.phase = "placement";
     this.first = Math.random() < 0.5 ? "player" : "enemy";
+    this.currentReplay = createReplay({
+      id: crypto.randomUUID(),
+      count: config.count,
+      arena: config.arena,
+      aiLevel: config.aiLevel,
+      first: this.first,
+    });
     this.active = this.first;
     this.winner = null;
     this.power = 0;
@@ -234,6 +259,13 @@ export class Alkkagi3DEngine {
   confirmPlacement() {
     if (this.phase !== "placement") return;
     this.draggingPlacement = false;
+    if (this.currentReplay) {
+      this.currentReplay.placements = this.stones.map((stone) => ({
+        stoneId: stone.id,
+        x: stone.group.position.x,
+        z: stone.group.position.z,
+      }));
+    }
     this.phase = "battle";
     this.active = this.first;
     this.message = this.first === "player" ? "선공입니다 · 돌을 당겨 발사하세요" : "상대가 선공입니다";
@@ -242,6 +274,39 @@ export class Alkkagi3DEngine {
     this.playTone(420, 0.12, 0.04, 780);
     this.emit();
     if (this.active === "enemy") this.scheduleAi();
+  }
+
+  playReplay(replay: MatchReplay) {
+    this.ensureAudio();
+    this.token += 1;
+    this.count = replay.count;
+    this.aiLevel = replay.aiLevel;
+    this.setArena(replay.arena);
+    this.replayMode = true;
+    this.currentReplay = null;
+    this.replayQueue = replay.shots.map((shot) => ({ ...shot }));
+    this.replayShotNumber = 0;
+    this.replayTotalShots = replay.shots.length;
+    this.replayExpectedWinner = replay.winner;
+    this.phase = "battle";
+    this.first = replay.first;
+    this.active = replay.first;
+    this.winner = null;
+    this.power = 0;
+    this.aimSpin = 0;
+    this.shotMoving = false;
+    this.bonus = false;
+    this.timer = 0;
+    this.message = "REPLAY · 기록된 경기를 재생합니다";
+    this.clearStones();
+    this.createTeams(replay.count, false);
+    for (const placement of replay.placements) {
+      const stone = this.stones.find((candidate) => candidate.id === placement.stoneId);
+      if (stone) stone.group.position.set(placement.x, 0.55, placement.z);
+    }
+    this.selectStone(null);
+    this.emit();
+    this.scheduleReplayShot();
   }
 
   dispose() {
@@ -466,6 +531,7 @@ export class Alkkagi3DEngine {
       bonus: this.bonus,
       winner: this.winner,
       message: this.message,
+      replay: this.replayMode,
     });
   }
 
@@ -487,6 +553,7 @@ export class Alkkagi3DEngine {
   }
 
   private onPointerDown = (event: PointerEvent) => {
+    if (this.replayMode) return;
     this.ensureAudio();
     this.updatePointer(event);
     if (this.phase === "placement") {
@@ -584,7 +651,18 @@ export class Alkkagi3DEngine {
     return this.stones.some((other) => other !== stone && other.alive && Math.hypot(x - other.group.position.x, z - other.group.position.z) < stone.radius + other.radius + 0.09);
   }
 
-  private launch(stone: Stone, direction: THREE.Vector2, power: number, spin: number) {
+  private launch(stone: Stone, direction: THREE.Vector2, power: number, spin: number, record = true) {
+    if (record && this.currentReplay && !this.replayMode) {
+      this.currentReplay.shots.push({
+        sequence: this.currentReplay.shots.length,
+        owner: stone.owner,
+        stoneId: stone.id,
+        directionX: direction.x,
+        directionZ: direction.y,
+        power,
+        spin,
+      });
+    }
     const durability = stone.character.stats[2];
     const launch = calculateLaunchVelocity(power, stone.character.stats[0], direction.x, direction.y);
     stone.velocity.set(launch.vx, launch.vz);
@@ -685,6 +763,11 @@ export class Alkkagi3DEngine {
       this.phase = "result";
       this.message = this.winner === "player" ? "RIFT BOARD SURVIVOR" : "THE ABYSS CLAIMS THE BOARD";
       this.bonus = false;
+      this.replayQueue = [];
+      if (this.currentReplay && !this.replayMode) {
+        this.currentReplay.winner = this.winner;
+        this.onReplayReady(structuredClone(this.currentReplay));
+      }
       this.playResult(this.winner === "player");
       this.emit();
       return;
@@ -703,7 +786,37 @@ export class Alkkagi3DEngine {
     this.phaseDeadline = performance.now() + MATCH_RULES.turnSeconds * 1000;
     this.timer = MATCH_RULES.turnSeconds;
     this.emit();
+    if (this.replayMode) {
+      this.scheduleReplayShot();
+      return;
+    }
     if (this.active === "enemy") this.scheduleAi();
+  }
+
+  private scheduleReplayShot() {
+    const token = this.token;
+    window.setTimeout(() => {
+      if (token !== this.token || !this.replayMode || this.phase !== "battle" || this.shotMoving) return;
+      const shot = this.replayQueue.shift();
+      if (!shot) {
+        this.winner = this.replayExpectedWinner;
+        this.phase = "result";
+        this.bonus = false;
+        this.message = "REPLAY COMPLETE";
+        this.emit();
+        return;
+      }
+      const stone = this.stones.find((candidate) => candidate.id === shot.stoneId && candidate.alive);
+      if (!stone) {
+        this.scheduleReplayShot();
+        return;
+      }
+      this.replayShotNumber += 1;
+      this.active = shot.owner;
+      this.selectStone(stone);
+      this.message = `REPLAY · SHOT ${this.replayShotNumber} / ${this.replayTotalShots}`;
+      this.launch(stone, new THREE.Vector2(shot.directionX, shot.directionZ), shot.power, shot.spin, false);
+    }, 700);
   }
 
   private scheduleAi() {
@@ -852,6 +965,7 @@ export class Alkkagi3DEngine {
   }
 
   private updateTimer(now: number) {
+    if (this.replayMode) return;
     if (this.phase !== "placement" && (this.phase !== "battle" || this.shotMoving)) return;
     const next = Math.max(0, Math.ceil((this.phaseDeadline - now) / 1000));
     if (next !== this.timer) {

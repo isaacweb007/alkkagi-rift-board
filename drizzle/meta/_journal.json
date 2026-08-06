@@ -15,6 +15,13 @@
       "when": 1786004013507,
       "tag": "0001_good_human_fly",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1786004602280,
+      "tag": "0002_overjoyed_earthquake",
+      "breakpoints": true
     }
   ]
 }

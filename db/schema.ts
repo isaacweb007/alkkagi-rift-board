@@ -50,3 +50,17 @@ export const resultReceipts = sqliteTable("result_receipts", {
 }, (table) => [
   index("result_receipts_user_idx").on(table.userId, table.createdAt),
 ]);
+
+export const matchReplays = sqliteTable("match_replays", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  mode: text("mode").notNull(),
+  count: integer("count").notNull(),
+  arena: text("arena").notNull(),
+  winner: text("winner"),
+  shotCount: integer("shot_count").notNull(),
+  dataJson: text("data_json").notNull(),
+  createdAt: integer("created_at").notNull(),
+}, (table) => [
+  index("match_replays_user_created_idx").on(table.userId, table.createdAt),
+]);
