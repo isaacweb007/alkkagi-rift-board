@@ -188,10 +188,16 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(engine, /private ringOut/);
   assert.match(engine, /BONUS SHOT/);
   assert.match(engine, /private takeAiShot/);
+  assert.match(engine, /character-roster\.png/);
+  assert.match(engine, /private createPortraitTexture/);
+  for (const character of ["몽돌", "브릭 경", "루나벨", "핀치", "번개배달 모모", "비트캣", "세이프티 박사", "제로-볼트", "코멧 키드", "오로라-8"]) {
+    assert.match(engine, new RegExp(character));
+  }
   assert.match(core, /export function solveCircleCollision/);
   assert.match(core, /export function resolveShotOutcome/);
   assert.match(core, /fixedStep: 1 \/ 120/);
   assert.match(styles, /arena-modern-danger-v2\.png/);
+  assert.match(styles, /selected-concept-portrait/);
   assert.match(styles, /prefers-reduced-motion:reduce/);
   assert.match(packageJson, /"three": "\^0\.179\.1"/);
 });

@@ -13,6 +13,7 @@ const initialSnapshot: ArenaSnapshot = {
   selectedName: "몽돌",
   selectedElement: "대지",
   selectedStats: [3, 3, 3, 3, 3],
+  selectedPortrait: [0, 0],
   playerAlive: 3,
   enemyAlive: 3,
   count: 3,
@@ -175,7 +176,7 @@ export default function AlkkagiArena() {
       </header>
 
       {screen === "lobby" && <section className="arena-lobby">
-        <div className="engine-badge"><i /> REAL-TIME WEBGL ENGINE <small>ALPHA 0.3</small></div>
+        <div className="engine-badge"><i /> ORIGINAL CONCEPT ROSTER LIVE <small>ALPHA 0.4</small></div>
         <h1>당겨서<br/><em>심연으로.</em></h1>
         <p>콘셉트 이미지의 위험한 아레나가 실제 3D 경기장이 됩니다. 입체 돌을 직접 배치하고, 당구처럼 조준해 마지막 생존자가 되세요.</p>
 
@@ -202,7 +203,8 @@ export default function AlkkagiArena() {
         <div className="team-hud enemy"><div><small>HELL AI · LV {aiLevel}</small><b>ABYSS LEGION</b><Pips alive={snapshot.enemyAlive} count={snapshot.count} enemy/></div><div className="team-symbol">♛</div></div>
 
         <aside className="stone-readout">
-          <small>SELECTED 3D STONE</small><h2>{snapshot.selectedName}</h2><em>{snapshot.selectedElement}</em>
+          <div className="selected-concept-portrait" role="img" aria-label={`${snapshot.selectedName} 원화`} style={{ backgroundPosition: `${snapshot.selectedPortrait[0] * 25}% ${snapshot.selectedPortrait[1] * 100}%` }}><span>ORIGINAL ART</span></div>
+          <small>SELECTED 3D CHARACTER</small><h2>{snapshot.selectedName}</h2><em>{snapshot.selectedElement}</em>
           {(["추진", "중량", "내구", "정밀", "회전"] as const).map((label, index) => <div className="stat-line" key={label}><span>{label}</span><i><b style={{ width: `${snapshot.selectedStats[index] * 20}%` }} /></i><strong>{snapshot.selectedStats[index]}</strong></div>)}
         </aside>
 

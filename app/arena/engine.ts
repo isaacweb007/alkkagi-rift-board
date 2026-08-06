@@ -7,6 +7,7 @@ export type MatchMode = "practice" | "ranked";
 type Owner = "player" | "enemy";
 type Phase = "demo" | "placement" | "battle" | "result";
 type Stats = [number, number, number, number, number];
+type CharacterStyle = "rookie" | "knight" | "wizard" | "clockwork" | "courier" | "cat" | "safety" | "crystal" | "comet" | "aurora";
 
 export type ArenaSnapshot = {
   phase: Phase;
@@ -17,6 +18,7 @@ export type ArenaSnapshot = {
   selectedName: string;
   selectedElement: string;
   selectedStats: Stats;
+  selectedPortrait: readonly [number, number];
   playerAlive: number;
   enemyAlive: number;
   count: 3 | 5;
@@ -27,7 +29,17 @@ export type ArenaSnapshot = {
 };
 
 type MatchConfig = { count: 3 | 5; mode: MatchMode; arena: ArenaKind; aiLevel: number };
-type Character = { name: string; element: string; elementKo: string; color: number; accent: number; stats: Stats; demon?: boolean };
+type Character = {
+  name: string;
+  element: string;
+  elementKo: string;
+  color: number;
+  accent: number;
+  stats: Stats;
+  style: CharacterStyle;
+  portrait: readonly [number, number];
+  demon?: boolean;
+};
 type Stone = {
   id: string;
   owner: Owner;
@@ -46,19 +58,19 @@ type Particle = { mesh: THREE.Mesh; velocity: THREE.Vector3; life: number; maxLi
 type Arc = { line: THREE.Line; life: number; maxLife: number };
 
 const PLAYER_ROSTER: Character[] = [
-  { name: "몽돌", element: "earth", elementKo: "대지 · 균형형", color: 0xdce5f4, accent: 0xffcf66, stats: [3, 3, 3, 3, 3] },
-  { name: "브릭 경", element: "fire", elementKo: "불 · 수비형", color: 0x2a303b, accent: 0xff6d39, stats: [2, 5, 5, 2, 1] },
-  { name: "루나벨", element: "water", elementKo: "물 · 회전형", color: 0xe3ddff, accent: 0x66caff, stats: [2, 2, 2, 4, 5] },
-  { name: "핀치", element: "lightning", elementKo: "번개 · 속공형", color: 0x312c42, accent: 0xffe45f, stats: [5, 2, 2, 3, 3] },
-  { name: "비트캣", element: "thunder", elementKo: "천둥 · 뱅크형", color: 0x171b28, accent: 0xef58ff, stats: [3, 2, 2, 4, 4] },
+  { name: "몽돌", element: "earth", elementKo: "공통 · 균형형", color: 0x171922, accent: 0x8fa8ff, stats: [3, 3, 3, 3, 3], style: "rookie", portrait: [0, 0] },
+  { name: "브릭 경", element: "earth", elementKo: "중세 · 수비형", color: 0x171922, accent: 0xd6923f, stats: [2, 5, 5, 2, 1], style: "knight", portrait: [1, 0] },
+  { name: "루나벨", element: "water", elementKo: "중세 · 회전형", color: 0x161822, accent: 0xb85cff, stats: [2, 2, 2, 4, 5], style: "wizard", portrait: [2, 0] },
+  { name: "핀치", element: "lightning", elementKo: "중세 · 연쇄형", color: 0x1b1b22, accent: 0x45d8e8, stats: [5, 2, 2, 3, 3], style: "clockwork", portrait: [3, 0] },
+  { name: "번개배달 모모", element: "lightning", elementKo: "현대 · 속공형", color: 0x10243c, accent: 0x3ccfff, stats: [5, 1, 2, 4, 3], style: "courier", portrait: [4, 0] },
 ];
 
 const DEMON_ROSTER: Character[] = [
-  { name: "잿불아귀", element: "fire", elementKo: "지옥불 · 포식자", color: 0x2b0d0c, accent: 0xff321b, stats: [4, 4, 3, 2, 2], demon: true },
-  { name: "폭뢰뿔", element: "thunder", elementKo: "천둥 · 돌진형", color: 0x160d21, accent: 0xc250ff, stats: [5, 3, 2, 2, 3], demon: true },
-  { name: "심연눈", element: "void", elementKo: "공허 · 저격형", color: 0x100819, accent: 0xff3f70, stats: [2, 2, 3, 5, 3], demon: true },
-  { name: "사슬간수", element: "earth", elementKo: "쇠사슬 · 중량형", color: 0x231916, accent: 0xff873d, stats: [2, 5, 5, 2, 1], demon: true },
-  { name: "지옥강아지", element: "fire", elementKo: "지옥불 · 교란형", color: 0x301119, accent: 0xffca42, stats: [5, 1, 2, 4, 3], demon: true },
+  { name: "비트캣", element: "thunder", elementKo: "현대 · 뱅크형", color: 0x151823, accent: 0xef58ff, stats: [3, 2, 2, 4, 4], style: "cat", portrait: [0, 1], demon: true },
+  { name: "세이프티 박사", element: "earth", elementKo: "현대 · 구출형", color: 0x2a2417, accent: 0xffbf32, stats: [2, 4, 4, 4, 1], style: "safety", portrait: [1, 1], demon: true },
+  { name: "제로-볼트", element: "lightning", elementKo: "미래 · 카운터형", color: 0x121f22, accent: 0x36f1ec, stats: [4, 4, 3, 2, 2], style: "crystal", portrait: [2, 1], demon: true },
+  { name: "코멧 키드", element: "fire", elementKo: "미래 · 피니셔", color: 0x241518, accent: 0xff5a2f, stats: [5, 3, 2, 1, 4], style: "comet", portrait: [3, 1], demon: true },
+  { name: "오로라-8", element: "void", elementKo: "미래 · 정밀형", color: 0x151827, accent: 0x8af7ff, stats: [1, 3, 4, 5, 2], style: "aurora", portrait: [4, 1], demon: true },
 ];
 
 const ARENA_COLORS: Record<ArenaKind, { board: number; edge: number; hazard: number; fog: number }> = {
@@ -89,6 +101,8 @@ export class Alkkagi3DEngine {
   private boardPoint = new THREE.Vector3();
   private board: THREE.Mesh;
   private edgeRing: THREE.Mesh;
+  private rosterTexture: THREE.Texture;
+  private rosterReady = false;
   private decor = new THREE.Group();
   private aimLine: THREE.Line;
   private hazardLight = new THREE.PointLight(0x2e89ff, 16, 18, 2);
@@ -142,6 +156,16 @@ export class Alkkagi3DEngine {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.2;
     this.container.appendChild(this.renderer.domElement);
+    this.rosterTexture = new THREE.TextureLoader().load("/assets/character-roster.png", (texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.minFilter = THREE.LinearMipmapLinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      this.rosterReady = true;
+      this.refreshPortraitTextures();
+    });
+    this.rosterTexture.colorSpace = THREE.SRGBColorSpace;
+    this.rosterTexture.minFilter = THREE.LinearMipmapLinearFilter;
+    this.rosterTexture.magFilter = THREE.LinearFilter;
 
     this.camera.position.set(0, 8.9, 10.8);
     this.camera.lookAt(0, 0.25, 0);
@@ -324,9 +348,14 @@ export class Alkkagi3DEngine {
       if (object instanceof THREE.Mesh || object instanceof THREE.Line) {
         object.geometry.dispose();
         const materials = Array.isArray(object.material) ? object.material : [object.material];
-        materials.forEach((material) => material.dispose());
+        materials.forEach((material) => {
+          const map = (material as THREE.MeshStandardMaterial).map;
+          if (map?.userData.characterPortrait) map.dispose();
+          material.dispose();
+        });
       }
     });
+    this.rosterTexture.dispose();
     this.renderer.dispose();
     this.container.replaceChildren();
     this.audio?.close().catch(() => {});
@@ -433,6 +462,17 @@ export class Alkkagi3DEngine {
     rim.rotation.x = Math.PI / 2;
     rim.position.y = 0.155;
     group.add(rim);
+    const portraitMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.08, emissive: character.accent, emissiveIntensity: 0.08 });
+    portraitMaterial.userData.characterPortraitTile = character.portrait;
+    if (this.rosterReady) portraitMaterial.map = this.createPortraitTexture(character.portrait);
+    const portrait = new THREE.Mesh(
+      new THREE.CircleGeometry(STONE_RADIUS * 0.73, 48),
+      portraitMaterial,
+    );
+    portrait.rotation.x = -Math.PI / 2;
+    portrait.position.y = 0.164;
+    portrait.renderOrder = 2;
+    group.add(portrait);
     const faceMaterial = new THREE.MeshStandardMaterial({ color: character.demon ? 0xffb33b : 0x101522, emissive: character.demon ? 0xff321b : 0x000000, emissiveIntensity: character.demon ? 2 : 0 });
     for (const x of [-0.14, 0.14]) {
       const eye = new THREE.Mesh(new THREE.SphereGeometry(0.063, 16, 10), faceMaterial);
@@ -463,28 +503,129 @@ export class Alkkagi3DEngine {
     };
   }
 
+  private createPortraitTexture(tile: readonly [number, number]): THREE.Texture {
+    const texture = this.rosterTexture.clone();
+    texture.repeat.set(1 / 5, 1 / 2);
+    texture.offset.set(tile[0] / 5, tile[1] === 0 ? 0.5 : 0);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.userData.characterPortrait = true;
+    texture.needsUpdate = true;
+    return texture;
+  }
+
+  private refreshPortraitTextures() {
+    for (const stone of this.stones) {
+      stone.group.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        for (const material of materials) {
+          const portraitMaterial = material as THREE.MeshStandardMaterial;
+          const tile = portraitMaterial.userData.characterPortraitTile as readonly [number, number] | undefined;
+          if (!tile) continue;
+          if (portraitMaterial.map?.userData.characterPortrait) portraitMaterial.map.dispose();
+          portraitMaterial.map = this.createPortraitTexture(tile);
+          portraitMaterial.needsUpdate = true;
+        }
+      });
+    }
+  }
+
   private addAccessory(group: THREE.Group, character: Character, material: THREE.Material) {
-    if (character.element === "fire" || character.demon) {
-      for (const x of [-0.22, 0.22]) {
-        const horn = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.29, 7), material.clone());
-        horn.position.set(x, 0.36, 0.02);
-        horn.rotation.z = x < 0 ? 0.32 : -0.32;
-        group.add(horn);
+    const accent = () => material.clone();
+    const dark = () => new THREE.MeshStandardMaterial({ color: 0x151924, metalness: 0.8, roughness: 0.25 });
+    const add = (mesh: THREE.Mesh, x: number, y: number, z: number) => {
+      mesh.position.set(x, y, z);
+      mesh.castShadow = true;
+      group.add(mesh);
+      return mesh;
+    };
+
+    if (character.style === "rookie") {
+      const crest = add(new THREE.Mesh(new THREE.OctahedronGeometry(0.09), accent()), 0, 0.36, -0.12);
+      crest.rotation.y = Math.PI / 4;
+      return;
+    }
+
+    if (character.style === "knight") {
+      add(new THREE.Mesh(new THREE.CylinderGeometry(0.43, 0.43, 0.16, 32, 1, true), accent()), 0, 0.27, 0);
+      const visor = add(new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.13, 0.12), dark()), 0, 0.29, 0.32);
+      visor.rotation.x = -0.08;
+      for (const x of [-0.2, -0.1, 0, 0.1, 0.2]) add(new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.13, 0.025), accent()), x, 0.3, 0.385);
+      add(new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.31, 7), accent()), 0, 0.48, -0.05);
+      return;
+    }
+
+    if (character.style === "wizard") {
+      add(new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.045, 40), accent()), 0, 0.33, -0.03);
+      const hat = add(new THREE.Mesh(new THREE.ConeGeometry(0.29, 0.62, 36), new THREE.MeshStandardMaterial({ color: 0x59277f, emissive: character.accent, emissiveIntensity: 0.28, roughness: 0.7 })), 0.06, 0.63, -0.04);
+      hat.rotation.z = -0.18;
+      add(new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 12), accent()), 0.18, 0.92, -0.04);
+      return;
+    }
+
+    if (character.style === "clockwork") {
+      const monocle = add(new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.032, 10, 32), accent()), 0.18, 0.21, 0.38);
+      monocle.rotation.z = -0.08;
+      add(new THREE.Mesh(new THREE.SphereGeometry(0.105, 20, 14), new THREE.MeshPhysicalMaterial({ color: 0x71eaff, transparent: true, opacity: 0.52, metalness: 0.1, roughness: 0.08 })), 0.18, 0.21, 0.37);
+      add(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.32, 0.08), accent()), 0, 0.49, -0.05);
+      const key = add(new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.045, 8, 24), accent()), 0, 0.69, -0.05);
+      key.rotation.x = Math.PI / 2;
+      return;
+    }
+
+    if (character.style === "courier") {
+      const helmetBand = add(new THREE.Mesh(new THREE.TorusGeometry(0.39, 0.055, 10, 48), accent()), 0, 0.25, 0);
+      helmetBand.rotation.x = Math.PI / 2;
+      add(new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.18, 0.18), dark()), 0, 0.22, -0.39);
+      for (const x of [-0.4, 0.4]) {
+        const pod = add(new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.12, 20), accent()), x, 0.22, 0);
+        pod.rotation.z = Math.PI / 2;
       }
-    } else if (character.element === "water") {
-      const halo = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.035, 8, 32), material.clone());
-      halo.rotation.x = Math.PI / 2;
-      halo.position.y = 0.34;
-      group.add(halo);
-    } else if (character.element === "lightning" || character.element === "thunder") {
-      const antenna = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.38, 6), material.clone());
-      antenna.position.set(0, 0.4, 0);
-      antenna.rotation.z = 0.18;
-      group.add(antenna);
-    } else {
-      const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.12), material.clone());
-      gem.position.y = 0.34;
-      group.add(gem);
+      return;
+    }
+
+    if (character.style === "cat") {
+      for (const x of [-0.25, 0.25]) {
+        const ear = add(new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.3, 4), accent()), x, 0.46, -0.02);
+        ear.rotation.y = Math.PI / 4;
+        ear.rotation.z = x < 0 ? 0.18 : -0.18;
+        add(new THREE.Mesh(new THREE.SphereGeometry(0.12, 20, 14), accent()), x < 0 ? -0.4 : 0.4, 0.22, 0);
+      }
+      const headband = add(new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.035, 8, 48, Math.PI), accent()), 0, 0.32, 0);
+      headband.rotation.z = Math.PI;
+      return;
+    }
+
+    if (character.style === "safety") {
+      add(new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.44, 0.08, 40), new THREE.MeshStandardMaterial({ color: 0xf2a91d, roughness: 0.34, metalness: 0.25 })), 0, 0.31, 0);
+      add(new THREE.Mesh(new THREE.SphereGeometry(0.34, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xf4b126, roughness: 0.3, metalness: 0.2 })), 0, 0.31, 0);
+      add(new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.11, 0.1), accent()), 0, 0.46, 0.28);
+      return;
+    }
+
+    if (character.style === "crystal") {
+      for (let index = 0; index < 6; index += 1) {
+        const angle = index / 6 * Math.PI * 2;
+        const gem = add(new THREE.Mesh(new THREE.OctahedronGeometry(index === 0 ? 0.13 : 0.09), accent()), Math.cos(angle) * 0.3, 0.36 + (index % 2) * 0.05, Math.sin(angle) * 0.3);
+        gem.scale.y = 1.45;
+      }
+      return;
+    }
+
+    if (character.style === "comet") {
+      for (let index = 0; index < 3; index += 1) {
+        const plume = add(new THREE.Mesh(new THREE.ConeGeometry(0.1 + index * 0.02, 0.45 + index * 0.08, 8), new THREE.MeshStandardMaterial({ color: 0xd64524, emissive: character.accent, emissiveIntensity: 0.55, roughness: 0.35 })), -0.18 + index * 0.16, 0.49 + index * 0.06, -0.12);
+        plume.rotation.z = -0.48;
+      }
+      add(new THREE.Mesh(new THREE.OctahedronGeometry(0.11), accent()), 0.17, 0.37, 0.16);
+      return;
+    }
+
+    for (let index = 0; index < 8; index += 1) {
+      const angle = index / 8 * Math.PI * 2;
+      const petalMaterial = new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(index / 8, 0.82, 0.68), emissive: new THREE.Color().setHSL(index / 8, 0.9, 0.42), emissiveIntensity: 1.5, roughness: 0.18 });
+      const petal = add(new THREE.Mesh(new THREE.OctahedronGeometry(0.085), petalMaterial), Math.cos(angle) * 0.37, 0.36, Math.sin(angle) * 0.37);
+      petal.scale.y = 1.55;
     }
   }
 
@@ -495,7 +636,11 @@ export class Alkkagi3DEngine {
         if (object instanceof THREE.Mesh) {
           object.geometry.dispose();
           const materials = Array.isArray(object.material) ? object.material : [object.material];
-          materials.forEach((material) => material.dispose());
+          materials.forEach((material) => {
+            const map = (material as THREE.MeshStandardMaterial).map;
+            if (map?.userData.characterPortrait) map.dispose();
+            material.dispose();
+          });
         }
       });
     }
@@ -525,6 +670,7 @@ export class Alkkagi3DEngine {
       selectedName: selected.name,
       selectedElement: selected.elementKo,
       selectedStats: selected.stats,
+      selectedPortrait: selected.portrait,
       playerAlive: this.stones.filter((stone) => stone.owner === "player" && stone.alive).length,
       enemyAlive: this.stones.filter((stone) => stone.owner === "enemy" && stone.alive).length,
       count: this.count,
