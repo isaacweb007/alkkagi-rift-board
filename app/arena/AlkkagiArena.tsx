@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Alkkagi3DEngine, type ArenaKind, type ArenaSnapshot, type AudioSettings, type MatchMode, type TeamTone } from "./engine";
+import { GOLDEN_ARENAS, GOLDEN_CHARACTER_NAMES } from "./art-direction";
 import { validateAndNormalizeReplay, type MatchReplay } from "./replay";
 
 const initialSnapshot: ArenaSnapshot = {
@@ -34,12 +35,6 @@ const AUDIO_CHANNELS: Array<{ key: "master" | "sfx" | "music"; label: string }> 
   { key: "sfx", label: "충돌·효과음" },
   { key: "music", label: "배경 음악" },
 ];
-
-const arenaLabels: Record<ArenaKind, { name: string; sub: string }> = {
-  medieval: { name: "왕들의 용광로", sub: "LAVA CITADEL" },
-  modern: { name: "시공의 경계", sub: "RIFT CONVERGENCE" },
-  future: { name: "중력 우물", sub: "VOID STATION" },
-};
 
 function Pips({ alive, count, tone }: { alive: number; count: number; tone: TeamTone }) {
   return <span className={`arena-pips tone-${tone}`}>{Array.from({ length: count }, (_, index) => <i className={index < alive ? "" : "out"} key={index} />)}</span>;
@@ -199,8 +194,12 @@ export default function AlkkagiArena() {
     setAudioSettings((current) => ({ ...current, muted: !current.muted }));
   };
 
+  const arenaStyle = {
+    "--arena-background": `url(${GOLDEN_ARENAS[arena].background})`,
+  } as CSSProperties;
+
   return (
-    <main className={`arena-app arena-${arena} screen-${screen}`}>
+    <main className={`arena-app arena-${arena} screen-${screen}`} style={arenaStyle}>
       <div className="arena-danger-backdrop" />
       <div className="webgl-stage" ref={mountRef} aria-label="WebGL 3D 알까기 경기장" />
       <div className="arena-vignette" />
@@ -218,13 +217,18 @@ export default function AlkkagiArena() {
       </aside>}
 
       {screen === "lobby" && <section className="arena-lobby">
-        <div className="engine-badge"><i /> ORIGINAL ART · PBR 3D ARENA <small>ALPHA 0.6</small></div>
+        <div className="engine-badge"><i /> GOLDEN ART SYNC · PBR 3D <small>ALPHA 0.7</small></div>
         <h1>당겨서<br/><em>심연으로.</em></h1>
-        <p>제작된 캐릭터·위험 배경·원형 아레나 디자인을 그대로 3D 경기로 살렸습니다. 매 경기 흑돌과 백돌 진영이 무작위로 정해지며, 10종의 고유 스킬로 마지막 생존자가 되세요.</p>
+        <p>확정된 10종 캐릭터 원화와 아레나 원화를 하나의 골든 아트 규격으로 연결했습니다. 매 경기 흑돌과 백돌 진영이 무작위로 정해지며, 고유 장비와 스킬은 팀 색상과 관계없이 그대로 유지됩니다.</p>
 
         <div className="arena-selector" aria-label="아레나 선택">
-          {(Object.keys(arenaLabels) as ArenaKind[]).map((key) => <button key={key} className={arena === key ? "active" : ""} onClick={() => setArena(key)}><small>{arenaLabels[key].sub}</small><b>{arenaLabels[key].name}</b></button>)}
+          {(Object.keys(GOLDEN_ARENAS) as ArenaKind[]).map((key) => <button key={key} className={arena === key ? "active" : ""} onClick={() => setArena(key)}><small>{GOLDEN_ARENAS[key].sub}</small><b>{GOLDEN_ARENAS[key].name}</b></button>)}
         </div>
+
+        <aside className="golden-roster" aria-label="골든 아트 캐릭터 10종">
+          <div className="golden-roster-hero" role="img" aria-label="비트캣 3D 원화" />
+          <div><small>ORIGINAL CHARACTER LINE</small><b>비트캣 · 몽돌 · 브릭 경 외 7종</b><span>{GOLDEN_CHARACTER_NAMES.length} CHARACTERS · TEAM COLOR LOCK</span></div>
+        </aside>
 
         <div className="engine-modes">
           <button data-testid="start-3v3" onClick={() => start(3, "practice")}><span>01</span><small>HELL PRACTICE</small><b>3 VS 3 속전</b><em>약 3–5분 · 실제 3D 물리</em><strong>PLAY ↗</strong></button>

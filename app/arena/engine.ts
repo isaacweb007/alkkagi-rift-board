@@ -1,8 +1,9 @@
 import * as THREE from "three";
 import { applyEdgeGrip, calculateLaunchVelocity, integrateBody, isRingOut, MATCH_RULES, resolveShotOutcome, solveCircleCollision } from "./core";
+import { GOLDEN_ART, GOLDEN_ARENAS, type GoldenArenaKind } from "./art-direction";
 import { createReplay, type MatchReplay, type ReplayShot } from "./replay";
 
-export type ArenaKind = "medieval" | "modern" | "future";
+export type ArenaKind = GoldenArenaKind;
 export type MatchMode = "practice" | "ranked";
 export type TeamTone = "black" | "white";
 export type AudioSettings = { master: number; sfx: number; music: number; muted: boolean };
@@ -119,8 +120,7 @@ export class Alkkagi3DEngine {
   private teamEdgeRed: THREE.Mesh;
   private gripRing: THREE.Mesh;
   private heritageRing: THREE.Mesh;
-  private rosterTexture: THREE.Texture;
-  private rosterReady = false;
+  private stoneSurfaceTexture: THREE.CanvasTexture;
   private decor = new THREE.Group();
   private aimLine: THREE.Line;
   private pullLine: THREE.Line;
@@ -184,23 +184,14 @@ export class Alkkagi3DEngine {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.2;
+    this.renderer.toneMappingExposure = 1.12;
     this.container.appendChild(this.renderer.domElement);
-    this.rosterTexture = new THREE.TextureLoader().load("/assets/character-roster.png", (texture) => {
-      texture.colorSpace = THREE.SRGBColorSpace;
-      texture.minFilter = THREE.LinearMipmapLinearFilter;
-      texture.magFilter = THREE.LinearFilter;
-      this.rosterReady = true;
-      this.refreshPortraitTextures();
-    });
-    this.rosterTexture.colorSpace = THREE.SRGBColorSpace;
-    this.rosterTexture.minFilter = THREE.LinearMipmapLinearFilter;
-    this.rosterTexture.magFilter = THREE.LinearFilter;
+    this.stoneSurfaceTexture = this.createStoneSurfaceTexture();
 
     this.camera.position.set(0, 6.5, 12);
     this.camera.lookAt(0, 0.25, 1.2);
     this.scene.fog = new THREE.FogExp2(0x03101c, 0.026);
-    this.scene.add(new THREE.HemisphereLight(0xb8ddff, 0x160b10, 2.4));
+    this.scene.add(new THREE.HemisphereLight(GOLDEN_ARENAS.modern.light, 0x160b10, 2.15));
     this.keyLight.position.set(-5, 10, 7);
     this.keyLight.target.position.set(0, 0, 0);
     this.keyLight.castShadow = true;
@@ -315,13 +306,13 @@ export class Alkkagi3DEngine {
     const side = materials[0] as THREE.MeshStandardMaterial;
     const top = materials[1] as THREE.MeshStandardMaterial;
     side.color.setHex(colors.board);
-    top.color.setHex(kind === "modern" ? 0x89929c : kind === "medieval" ? 0xa79079 : 0x8e82a2);
-    top.emissive.setHex(colors.edge);
-    top.emissiveIntensity = 0.035;
-    (this.edgeRing.material as THREE.MeshStandardMaterial).color.setHex(kind === "modern" ? 0xc08b42 : colors.edge);
-    (this.edgeRing.material as THREE.MeshStandardMaterial).emissive.setHex(kind === "modern" ? 0x5b3515 : colors.edge);
+    top.color.setHex(0xffffff);
+    top.emissive.setHex(0x24150a);
+    top.emissiveIntensity = 0.025;
+    (this.edgeRing.material as THREE.MeshStandardMaterial).color.setHex(0xc08b42);
+    (this.edgeRing.material as THREE.MeshStandardMaterial).emissive.setHex(0x5b3515);
     (this.gripRing.material as THREE.MeshBasicMaterial).color.setHex(colors.edge);
-    this.hazardLight.color.setHex(colors.hazard);
+    this.hazardLight.color.setHex(GOLDEN_ARENAS[kind].hazard);
     if (this.scene.fog instanceof THREE.FogExp2) this.scene.fog.color.setHex(colors.fog);
     this.buildDecor();
   }
@@ -452,12 +443,12 @@ export class Alkkagi3DEngine {
         const materials = Array.isArray(object.material) ? object.material : [object.material];
         materials.forEach((material) => {
           const map = (material as THREE.MeshStandardMaterial).map;
-          if (map?.userData.characterPortrait) map.dispose();
+          if (map?.userData.characterPortrait || map?.userData.gameAsset) map.dispose();
           material.dispose();
         });
       }
     });
-    this.rosterTexture.dispose();
+    this.stoneSurfaceTexture.dispose();
     if (this.musicTimer) window.clearInterval(this.musicTimer);
     this.renderer.dispose();
     this.container.replaceChildren();
@@ -467,75 +458,39 @@ export class Alkkagi3DEngine {
   private createBoardMaterials(): THREE.Material[] {
     const texture = this.createOriginalBoardTexture();
     return [
-      new THREE.MeshStandardMaterial({ color: 0x080c13, roughness: 0.28, metalness: 0.82 }),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, map: texture, roughness: 0.58, metalness: 0.38 }),
+      new THREE.MeshStandardMaterial({ color: 0x0a0b0d, roughness: 0.32, metalness: 0.78 }),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, map: texture, roughness: 0.62, metalness: 0.34 }),
       new THREE.MeshStandardMaterial({ color: 0x05070b, roughness: 0.5, metalness: 0.7 }),
     ];
   }
 
-  private createOriginalBoardTexture(): THREE.CanvasTexture {
-    const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = 1024;
-    const context = canvas.getContext("2d")!;
-    const radial = context.createRadialGradient(430, 390, 20, 512, 512, 510);
-    radial.addColorStop(0, "#343638");
-    radial.addColorStop(0.48, "#1c1e21");
-    radial.addColorStop(0.86, "#111316");
-    radial.addColorStop(1, "#08090b");
-    context.fillStyle = radial;
-    context.fillRect(0, 0, 1024, 1024);
-
-    for (let index = 0; index < 720; index += 1) {
-      const angle = index * 2.399963;
-      const radius = 40 + ((index * 73) % 460);
-      const alpha = 0.018 + (index % 5) * 0.005;
-      context.fillStyle = `rgba(220,205,176,${alpha})`;
-      context.fillRect(512 + Math.cos(angle) * radius, 512 + Math.sin(angle) * radius, 1 + index % 3, 1 + index % 2);
-    }
-
-    context.strokeStyle = "rgba(194,148,82,.28)";
-    context.lineWidth = 2;
-    for (let index = 0; index < 24; index += 1) {
-      const angle = index / 24 * Math.PI * 2;
-      context.beginPath();
-      context.moveTo(512 + Math.cos(angle) * 118, 512 + Math.sin(angle) * 118);
-      context.lineTo(512 + Math.cos(angle) * 474, 512 + Math.sin(angle) * 474);
-      context.stroke();
-    }
-
-    context.strokeStyle = "rgba(216,165,92,.66)";
-    context.lineWidth = 5;
-    for (const radius of [104, 124, 470, 486]) {
-      context.beginPath();
-      context.arc(512, 512, radius, 0, Math.PI * 2);
-      context.stroke();
-    }
-
-    context.save();
-    context.translate(512, 512);
-    context.fillStyle = "rgba(181,126,55,.82)";
-    context.strokeStyle = "rgba(246,204,124,.82)";
-    context.lineWidth = 3;
-    for (let index = 0; index < 12; index += 1) {
-      context.save();
-      context.rotate(index / 12 * Math.PI * 2);
-      context.beginPath();
-      context.ellipse(0, -61, 17, 54, 0, 0, Math.PI * 2);
-      context.fill();
-      context.stroke();
-      context.restore();
-    }
-    context.fillStyle = "#20170f";
-    context.beginPath();
-    context.arc(0, 0, 28, 0, Math.PI * 2);
-    context.fill();
-    context.stroke();
-    context.restore();
-
-    const texture = new THREE.CanvasTexture(canvas);
+  private createOriginalBoardTexture(): THREE.Texture {
+    const texture = new THREE.TextureLoader().load(GOLDEN_ART.boardTexture);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
-    texture.userData.designReference = "/assets/board-topdown.png";
+    texture.userData.designReference = GOLDEN_ART.boardReference;
+    texture.userData.gameAsset = true;
+    return texture;
+  }
+
+  private createStoneSurfaceTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 256;
+    const context = canvas.getContext("2d")!;
+    context.fillStyle = "#7f7f7f";
+    context.fillRect(0, 0, 256, 256);
+    for (let index = 0; index < 1800; index += 1) {
+      const value = 86 + ((index * 47) % 82);
+      const size = 1 + (index % 3);
+      context.fillStyle = `rgb(${value},${value},${value})`;
+      context.globalAlpha = 0.13 + (index % 4) * 0.035;
+      context.fillRect((index * 73) % 256, (index * 131) % 256, size, size);
+    }
+    context.globalAlpha = 1;
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(2.4, 2.4);
+    texture.userData.gameAsset = true;
     return texture;
   }
 
@@ -561,12 +516,12 @@ export class Alkkagi3DEngine {
         this.decor.add(spike);
       }
     } else if (this.arena === "modern") {
-      for (let index = 0; index < 18; index += 1) {
-        const angle = index / 18 * Math.PI * 2;
-        const height = 0.6 + (index % 4) * 0.24;
-        const tower = new THREE.Mesh(new THREE.BoxGeometry(0.22, height, 0.22), material.clone());
-        tower.position.set(Math.cos(angle) * (BOARD_RADIUS + 0.7), -0.2, Math.sin(angle) * (BOARD_RADIUS + 0.7));
-        this.decor.add(tower);
+      const beaconMaterial = new THREE.MeshStandardMaterial({ color: 0x5b101b, emissive: 0xff334f, emissiveIntensity: 2.4, metalness: 0.5, roughness: 0.22 });
+      for (let index = 0; index < 8; index += 1) {
+        const angle = index / 8 * Math.PI * 2;
+        const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.07, 0.18, 16), beaconMaterial.clone());
+        beacon.position.set(Math.cos(angle) * (BOARD_RADIUS + 0.46), 0.02, Math.sin(angle) * (BOARD_RADIUS + 0.46));
+        this.decor.add(beacon);
       }
     } else {
       for (let index = 0; index < 3; index += 1) {
@@ -588,7 +543,6 @@ export class Alkkagi3DEngine {
       this.stones.push(player);
       const enemy = this.createStone(DEMON_ROSTER[index % DEMON_ROSTER.length], "enemy", index, this.enemyTone);
       enemy.group.position.set(-offset, 0.55, enemyZ - Math.abs(offset) * 0.12);
-      enemy.group.rotation.y = Math.PI;
       this.stones.push(enemy);
     }
   }
@@ -596,9 +550,19 @@ export class Alkkagi3DEngine {
   private createStone(character: Character, owner: Owner, index: number, tone: TeamTone): Stone {
     const group = new THREE.Group();
     const bodyColor = tone === "white" ? 0xe8e5dc : 0x111319;
-    const bodyMaterial = new THREE.MeshPhysicalMaterial({ color: bodyColor, roughness: tone === "white" ? 0.2 : 0.3, metalness: 0.34, clearcoat: 0.9, clearcoatRoughness: 0.16, emissive: character.accent, emissiveIntensity: tone === "white" ? 0.025 : 0.075 });
-    const body = new THREE.Mesh(new THREE.SphereGeometry(STONE_RADIUS, 48, 28), bodyMaterial);
-    body.scale.set(1, 0.74, 1);
+    const bodyMaterial = new THREE.MeshPhysicalMaterial({
+      color: bodyColor,
+      roughness: tone === "white" ? 0.26 : 0.34,
+      metalness: 0.3,
+      clearcoat: 0.82,
+      clearcoatRoughness: 0.2,
+      emissive: character.accent,
+      emissiveIntensity: tone === "white" ? 0.01 : 0.014,
+      bumpMap: this.stoneSurfaceTexture,
+      bumpScale: 0.022,
+    });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(STONE_RADIUS, 64, 36), bodyMaterial);
+    body.scale.set(1.03, 0.76, 1.03);
     body.position.y = 0.13;
     body.castShadow = true;
     body.receiveShadow = true;
@@ -619,36 +583,33 @@ export class Alkkagi3DEngine {
     rim.rotation.x = Math.PI / 2;
     rim.position.y = -0.055;
     group.add(rim);
-    const portraitMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.08, emissive: character.accent, emissiveIntensity: 0.08 });
-    portraitMaterial.userData.characterPortraitTile = character.portrait;
-    if (this.rosterReady) portraitMaterial.map = this.createPortraitTexture(character.portrait);
-    const portrait = new THREE.Mesh(
-      new THREE.CircleGeometry(STONE_RADIUS * 0.58, 48),
-      portraitMaterial,
-    );
-    portrait.rotation.x = -Math.PI / 2;
-    portrait.position.y = 0.456;
-    portrait.renderOrder = 2;
-    group.add(portrait);
     const eyeWhiteMaterial = new THREE.MeshPhysicalMaterial({ color: 0xf4f7ff, roughness: 0.22, metalness: 0.02, clearcoat: 0.65 });
     const faceMaterial = new THREE.MeshStandardMaterial({ color: 0x080a0f, roughness: 0.42, metalness: 0.1 });
     for (const x of [-0.14, 0.14]) {
+      const eyeOutline = new THREE.Mesh(new THREE.SphereGeometry(0.122, 28, 16), faceMaterial);
+      eyeOutline.position.set(x, 0.15, 0.383);
+      eyeOutline.scale.set(1.08, character.demon ? 0.7 : 0.9, 0.38);
+      group.add(eyeOutline);
       const eye = new THREE.Mesh(new THREE.SphereGeometry(0.105, 24, 14), eyeWhiteMaterial);
-      eye.position.set(x, 0.15, 0.392);
+      eye.position.set(x, 0.15, 0.405);
       eye.scale.set(1, character.demon ? 0.58 : 0.78, 0.36);
       group.add(eye);
       const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.042, 18, 12), faceMaterial);
-      pupil.position.set(x + (x < 0 ? 0.018 : -0.018), 0.145, 0.477);
+      pupil.position.set(x + (x < 0 ? 0.018 : -0.018), 0.145, 0.486);
       pupil.scale.z = 0.42;
       group.add(pupil);
+      const eyeGlint = new THREE.Mesh(new THREE.SphereGeometry(0.012, 10, 8), eyeWhiteMaterial);
+      eyeGlint.position.set(x + (x < 0 ? 0.004 : -0.032), 0.164, 0.51);
+      group.add(eyeGlint);
       const brow = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.035, 0.035), faceMaterial);
-      brow.position.set(x, 0.245, 0.425);
+      brow.position.set(x, 0.248, 0.486);
       brow.rotation.z = x < 0 ? -0.2 : 0.2;
       group.add(brow);
     }
-    const mouth = new THREE.Mesh(new THREE.BoxGeometry(character.demon ? 0.19 : 0.13, 0.025, 0.018), faceMaterial);
-    mouth.position.set(0, 0.045, 0.431);
-    mouth.rotation.z = character.demon ? -0.12 : 0.05;
+    const mouthCurve = new THREE.CatmullRomCurve3(character.demon
+      ? [new THREE.Vector3(-0.08, 0.06, 0.495), new THREE.Vector3(0, 0.025, 0.507), new THREE.Vector3(0.08, 0.057, 0.495)]
+      : [new THREE.Vector3(-0.068, 0.055, 0.497), new THREE.Vector3(0, 0.025, 0.508), new THREE.Vector3(0.068, 0.055, 0.497)]);
+    const mouth = new THREE.Mesh(new THREE.TubeGeometry(mouthCurve, 12, 0.014, 7, false), faceMaterial);
     group.add(mouth);
     this.addAccessory(group, character, rimMaterial);
     group.traverse((object) => { object.userData.stoneId = `${owner}-${index}`; });
@@ -671,33 +632,6 @@ export class Alkkagi3DEngine {
     };
   }
 
-  private createPortraitTexture(tile: readonly [number, number]): THREE.Texture {
-    const texture = this.rosterTexture.clone();
-    texture.repeat.set(1 / 5, 1 / 2);
-    texture.offset.set(tile[0] / 5, tile[1] === 0 ? 0.5 : 0);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.userData.characterPortrait = true;
-    texture.needsUpdate = true;
-    return texture;
-  }
-
-  private refreshPortraitTextures() {
-    for (const stone of this.stones) {
-      stone.group.traverse((object) => {
-        if (!(object instanceof THREE.Mesh)) return;
-        const materials = Array.isArray(object.material) ? object.material : [object.material];
-        for (const material of materials) {
-          const portraitMaterial = material as THREE.MeshStandardMaterial;
-          const tile = portraitMaterial.userData.characterPortraitTile as readonly [number, number] | undefined;
-          if (!tile) continue;
-          if (portraitMaterial.map?.userData.characterPortrait) portraitMaterial.map.dispose();
-          portraitMaterial.map = this.createPortraitTexture(tile);
-          portraitMaterial.needsUpdate = true;
-        }
-      });
-    }
-  }
-
   private addAccessory(group: THREE.Group, character: Character, material: THREE.Material) {
     const accent = () => material.clone();
     const dark = () => new THREE.MeshStandardMaterial({ color: 0x151924, metalness: 0.8, roughness: 0.25 });
@@ -709,13 +643,13 @@ export class Alkkagi3DEngine {
     };
 
     if (character.style === "rookie") {
-      const crest = add(new THREE.Mesh(new THREE.OctahedronGeometry(0.09), accent()), 0, 0.36, -0.12);
-      crest.rotation.y = Math.PI / 4;
       return;
     }
 
     if (character.style === "knight") {
-      add(new THREE.Mesh(new THREE.CylinderGeometry(0.43, 0.43, 0.16, 32, 1, true), accent()), 0, 0.27, 0);
+      const helm = add(new THREE.Mesh(new THREE.SphereGeometry(0.405, 40, 18, 0, Math.PI * 2, 0, Math.PI / 2), accent()), 0, 0.265, -0.02);
+      helm.scale.y = 0.7;
+      add(new THREE.Mesh(new THREE.CylinderGeometry(0.43, 0.43, 0.12, 40, 1, true), accent()), 0, 0.25, 0);
       const visor = add(new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.13, 0.12), dark()), 0, 0.29, 0.32);
       visor.rotation.x = -0.08;
       for (const x of [-0.2, -0.1, 0, 0.1, 0.2]) add(new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.13, 0.025), accent()), x, 0.3, 0.385);
@@ -728,6 +662,8 @@ export class Alkkagi3DEngine {
       const hat = add(new THREE.Mesh(new THREE.ConeGeometry(0.29, 0.62, 36), new THREE.MeshStandardMaterial({ color: 0x59277f, emissive: character.accent, emissiveIntensity: 0.28, roughness: 0.7 })), 0.06, 0.63, -0.04);
       hat.rotation.z = -0.18;
       add(new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 12), accent()), 0.18, 0.92, -0.04);
+      const moon = add(new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.025, 8, 24, Math.PI * 1.45), new THREE.MeshStandardMaterial({ color: 0xf0b84c, emissive: 0x6e3a0d, emissiveIntensity: 0.3, metalness: 0.75, roughness: 0.23 })), -0.02, 0.65, 0.255);
+      moon.rotation.z = -0.4;
       return;
     }
 
@@ -742,6 +678,8 @@ export class Alkkagi3DEngine {
     }
 
     if (character.style === "courier") {
+      const shell = add(new THREE.Mesh(new THREE.SphereGeometry(0.405, 40, 18, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x123c67, emissive: 0x0b4f7a, emissiveIntensity: 0.22, metalness: 0.62, roughness: 0.3 })), 0, 0.27, -0.01);
+      shell.scale.y = 0.62;
       const helmetBand = add(new THREE.Mesh(new THREE.TorusGeometry(0.39, 0.055, 10, 48), accent()), 0, 0.25, 0);
       helmetBand.rotation.x = Math.PI / 2;
       add(new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.18, 0.18), dark()), 0, 0.22, -0.39);
@@ -768,10 +706,14 @@ export class Alkkagi3DEngine {
       add(new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.44, 0.08, 40), new THREE.MeshStandardMaterial({ color: 0xf2a91d, roughness: 0.34, metalness: 0.25 })), 0, 0.31, 0);
       add(new THREE.Mesh(new THREE.SphereGeometry(0.34, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xf4b126, roughness: 0.3, metalness: 0.2 })), 0, 0.31, 0);
       add(new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.11, 0.1), accent()), 0, 0.46, 0.28);
+      const visor = add(new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.15, 0.035), new THREE.MeshPhysicalMaterial({ color: 0x263640, transparent: true, opacity: 0.44, transmission: 0.3, roughness: 0.1 })), 0, 0.18, 0.43);
+      visor.rotation.x = -0.08;
       return;
     }
 
     if (character.style === "crystal") {
+      const crownGem = add(new THREE.Mesh(new THREE.OctahedronGeometry(0.145), accent()), 0, 0.51, 0.03);
+      crownGem.scale.y = 1.5;
       for (let index = 0; index < 6; index += 1) {
         const angle = index / 6 * Math.PI * 2;
         const gem = add(new THREE.Mesh(new THREE.OctahedronGeometry(index === 0 ? 0.13 : 0.09), accent()), Math.cos(angle) * 0.3, 0.36 + (index % 2) * 0.05, Math.sin(angle) * 0.3);
@@ -1036,7 +978,6 @@ export class Alkkagi3DEngine {
 
   private physicsStep(dt: number) {
     if (this.phase === "demo") {
-      for (const stone of this.stones) stone.group.rotation.y += dt * (stone.owner === "player" ? 0.18 : -0.18);
       return;
     }
     for (const stone of this.stones) {
@@ -1055,7 +996,6 @@ export class Alkkagi3DEngine {
       stone.group.position.x = integrated.x;
       stone.group.position.z = integrated.z;
       stone.velocity.set(integrated.vx, integrated.vz);
-      stone.group.rotation.y += stone.velocity.length() * dt * 0.65;
       if (isRingOut(stone.group.position.x, stone.group.position.z) && !this.tryRescue(stone)) this.ringOut(stone);
     }
     if (!this.shotMoving) return;

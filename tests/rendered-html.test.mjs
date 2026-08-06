@@ -122,6 +122,7 @@ test("includes the complete visual concept asset set", async () => {
     "arena-future-danger-v2.png",
     "ui-battle-core-v2.png",
     "arena-rift-convergence-v3.png",
+    "board-clean-golden-v1.png",
   ];
 
   await Promise.all(
@@ -192,7 +193,7 @@ test("defines persistent profiles, level matching, and sandbox progression", asy
 });
 
 test("ships the real WebGL 3D arena engine", async () => {
-  const [page, arenaClient, component, engine, core, styles, packageJson] = await Promise.all([
+  const [page, arenaClient, component, engine, core, styles, packageJson, artDirection] = await Promise.all([
     readFile(new URL("../app/arena/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/arena/ArenaClient.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/arena/AlkkagiArena.tsx", import.meta.url), "utf8"),
@@ -200,6 +201,7 @@ test("ships the real WebGL 3D arena engine", async () => {
     readFile(new URL("../app/arena/core.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/arena/arena.css", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
+    readFile(new URL("../app/arena/art-direction.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(page, /ArenaClient/);
@@ -214,11 +216,13 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(engine, /private ringOut/);
   assert.match(engine, /BONUS SHOT/);
   assert.match(engine, /private takeAiShot/);
-  assert.match(engine, /character-roster\.png/);
-  assert.match(engine, /private createPortraitTexture/);
+  assert.match(artDirection, /character-roster-3d-v2\.png/);
+  assert.match(artDirection, /board-clean-golden-v1\.png/);
+  assert.match(artDirection, /arena-modern-danger-v2\.png/);
   assert.match(engine, /new THREE\.SphereGeometry\(STONE_RADIUS/);
+  assert.match(engine, /private createStoneSurfaceTexture/);
   assert.match(engine, /applyEdgeGrip/);
-  assert.match(engine, /designReference = "\/assets\/board-topdown\.png"/);
+  assert.match(engine, /designReference = GOLDEN_ART\.boardReference/);
   assert.match(engine, /setAudioSettings/);
   assert.match(engine, /private tryRescue/);
   assert.match(engine, /aimTargetRing/);
@@ -242,7 +246,7 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(core, /export function resolveShotOutcome/);
   assert.match(core, /fixedStep: 1 \/ 120/);
   assert.match(styles, /arena-modern-danger-v2\.png/);
-  assert.match(styles, /arena-rift-convergence-v3\.png/);
+  assert.match(styles, /character-roster-3d-v2\.png/);
   assert.match(styles, /power-needle/);
   assert.match(styles, /selected-concept-portrait/);
   assert.match(styles, /prefers-reduced-motion:reduce/);
