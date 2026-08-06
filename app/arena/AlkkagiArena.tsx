@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Alkkagi3DEngine, type ArenaKind, type ArenaSnapshot, type MatchMode } from "./engine";
+import { Alkkagi3DEngine, type ArenaKind, type ArenaSnapshot, type AudioSettings, type MatchMode, type TeamTone } from "./engine";
 import { validateAndNormalizeReplay, type MatchReplay } from "./replay";
 
 const initialSnapshot: ArenaSnapshot = {
@@ -14,6 +14,11 @@ const initialSnapshot: ArenaSnapshot = {
   selectedElement: "대지",
   selectedStats: [3, 3, 3, 3, 3],
   selectedPortrait: [0, 0],
+  selectedSkill: "균형 본능",
+  selectedSkillDescription: "힘·회전·가장자리 그립이 안정적으로 작동합니다.",
+  selectedTone: "white",
+  playerTone: "white",
+  enemyTone: "black",
   playerAlive: 3,
   enemyAlive: 3,
   count: 3,
@@ -23,14 +28,21 @@ const initialSnapshot: ArenaSnapshot = {
   replay: false,
 };
 
+const DEFAULT_AUDIO_SETTINGS: AudioSettings = { master: 0.8, sfx: 0.9, music: 0.35, muted: false };
+const AUDIO_CHANNELS: Array<{ key: "master" | "sfx" | "music"; label: string }> = [
+  { key: "master", label: "전체 음량" },
+  { key: "sfx", label: "충돌·효과음" },
+  { key: "music", label: "배경 음악" },
+];
+
 const arenaLabels: Record<ArenaKind, { name: string; sub: string }> = {
   medieval: { name: "왕들의 용광로", sub: "LAVA CITADEL" },
   modern: { name: "폭풍선 정상", sub: "THUNDER ROOFTOP" },
   future: { name: "중력 우물", sub: "VOID STATION" },
 };
 
-function Pips({ alive, count, enemy = false }: { alive: number; count: number; enemy?: boolean }) {
-  return <span className={`arena-pips ${enemy ? "enemy" : ""}`}>{Array.from({ length: count }, (_, index) => <i className={index < alive ? "" : "out"} key={index} />)}</span>;
+function Pips({ alive, count, tone }: { alive: number; count: number; tone: TeamTone }) {
+  return <span className={`arena-pips tone-${tone}`}>{Array.from({ length: count }, (_, index) => <i className={index < alive ? "" : "out"} key={index} />)}</span>;
 }
 
 export default function AlkkagiArena() {
@@ -43,7 +55,8 @@ export default function AlkkagiArena() {
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [arena, setArena] = useState<ArenaKind>("modern");
   const [aiLevel, setAiLevel] = useState(3);
-  const [sound, setSound] = useState(true);
+  const [audioOpen, setAudioOpen] = useState(false);
+  const [audioSettings, setAudioSettings] = useState<AudioSettings>(DEFAULT_AUDIO_SETTINGS);
   const [profile, setProfile] = useState({ id: "", level: 1, xp: 0, points: 500 });
   const [lastReplay, setLastReplay] = useState<MatchReplay | null>(null);
 
@@ -60,6 +73,7 @@ export default function AlkkagiArena() {
         body: JSON.stringify(replay),
       }).catch(() => {});
     });
+    engine.setAudioSettings(DEFAULT_AUDIO_SETTINGS);
     engineRef.current = engine;
     return () => engine.dispose();
   }, []);
@@ -71,6 +85,10 @@ export default function AlkkagiArena() {
   useEffect(() => {
     engineRef.current?.setArena(arena);
   }, [arena]);
+
+  useEffect(() => {
+    engineRef.current?.setAudioSettings(audioSettings);
+  }, [audioSettings]);
 
   useEffect(() => {
     const key = "alkkagi-3d-profile-v1";
@@ -137,6 +155,7 @@ export default function AlkkagiArena() {
   const start = (count: 3 | 5, mode: MatchMode) => {
     resultSentRef.current = null;
     matchReceiptRef.current = crypto.randomUUID();
+    setAudioOpen(false);
     setScreen("match");
     engineRef.current?.startMatch({ count, mode, arena, aiLevel });
   };
@@ -157,10 +176,12 @@ export default function AlkkagiArena() {
     engineRef.current?.playReplay(lastReplay);
   };
 
-  const toggleSound = () => {
-    const next = !sound;
-    setSound(next);
-    engineRef.current?.setSound(next);
+  const updateAudioChannel = (channel: "master" | "sfx" | "music", value: number) => {
+    setAudioSettings((current) => ({ ...current, [channel]: value }));
+  };
+
+  const toggleMute = () => {
+    setAudioSettings((current) => ({ ...current, muted: !current.muted }));
   };
 
   return (
@@ -172,13 +193,19 @@ export default function AlkkagiArena() {
       <header className="arena-topbar">
         <a className="arena-brand" href="/ALKAGI_CONCEPT_BOOK.html"><span>✦</span><b>ALKKAGI<small>RIFT BOARD · WEBGL</small></b></a>
         <div className="arena-profile"><span>LV <b>{profile.level}</b></span><i /><span>◆ {profile.points} PP</span><i /><span>{profile.xp} XP</span></div>
-        <button className="round-control" onClick={toggleSound} aria-label="사운드 전환">{sound ? "♪" : "×"}</button>
+        <button className={`round-control ${audioOpen ? "active" : ""}`} onClick={() => setAudioOpen((open) => !open)} aria-label="사운드 믹서 열기" aria-expanded={audioOpen}>{audioSettings.muted ? "×" : "♪"}</button>
       </header>
 
+      {audioOpen && <aside className="audio-mixer" data-testid="audio-mixer" aria-label="게임 사운드 조정">
+        <header><div><small>3-CHANNEL AUDIO</small><b>사운드 믹서</b></div><button onClick={toggleMute}>{audioSettings.muted ? "음소거 해제" : "음소거"}</button></header>
+        {AUDIO_CHANNELS.map(({ key, label }) => <label key={key}><span>{label}<b>{Math.round(audioSettings[key] * 100)}</b></span><input aria-label={label} type="range" min="0" max="1" step="0.05" value={audioSettings[key]} onChange={(event) => updateAudioChannel(key, Number(event.target.value))}/></label>)}
+        <p>충돌·번개·화염·추락 음성과 아레나 음악을 독립 조절합니다.</p>
+      </aside>}
+
       {screen === "lobby" && <section className="arena-lobby">
-        <div className="engine-badge"><i /> ORIGINAL ART · 3D MODEL PASS <small>ALPHA 0.5</small></div>
+        <div className="engine-badge"><i /> ORIGINAL ART · PBR 3D ARENA <small>ALPHA 0.6</small></div>
         <h1>당겨서<br/><em>심연으로.</em></h1>
-        <p>원화의 둥근 석재 몸체와 장비를 실제 3D 모델로 재구성했습니다. 넓어진 판과 가장자리 그립 존에서 당구처럼 정교하게 조준해 마지막 생존자가 되세요.</p>
+        <p>제작된 캐릭터·위험 배경·원형 아레나 디자인을 그대로 3D 경기로 살렸습니다. 매 경기 흑돌과 백돌 진영이 무작위로 정해지며, 10종의 고유 스킬로 마지막 생존자가 되세요.</p>
 
         <div className="arena-selector" aria-label="아레나 선택">
           {(Object.keys(arenaLabels) as ArenaKind[]).map((key) => <button key={key} className={arena === key ? "active" : ""} onClick={() => setArena(key)}><small>{arenaLabels[key].sub}</small><b>{arenaLabels[key].name}</b></button>)}
@@ -194,17 +221,18 @@ export default function AlkkagiArena() {
         </button>
 
         <div className="ai-level-control"><span>지옥 AI 위험도</span><input type="range" min="1" max="10" value={aiLevel} onChange={(event) => setAiLevel(Number(event.target.value))}/><b>LV {aiLevel}</b></div>
-        <div className="engine-proof"><span><i>+56%</i> AREA<br/><small>WIDE BOARD</small></span><span><i>10</i> MODELS<br/><small>ORIGINAL ART 3D</small></span><span><i>GRIP</i> ZONE<br/><small>SKILL RING-OUT</small></span></div>
+        <div className="engine-proof"><span><i>B/W</i> RANDOM<br/><small>CLEAR TEAMS</small></span><span><i>10</i> SKILLS<br/><small>LIVE PHYSICS</small></span><span><i>3CH</i> MIXER<br/><small>MUSIC · SFX</small></span></div>
       </section>}
 
       {screen === "match" && <section className="arena-match-ui">
-        <div className="team-hud player"><div className="team-symbol">✦</div><div><small>YOU · LV {profile.level}</small><b>RIFT ROOKIE</b><Pips alive={snapshot.playerAlive} count={snapshot.count}/></div></div>
+        <div className={`team-hud player tone-${snapshot.playerTone}`}><div className="team-symbol">{snapshot.playerTone === "white" ? "○" : "●"}</div><div><small>YOU · LV {profile.level}</small><b>{snapshot.playerTone === "white" ? "WHITE STONES" : "BLACK STONES"}</b><Pips alive={snapshot.playerAlive} count={snapshot.count} tone={snapshot.playerTone}/></div></div>
         <div className="phase-hud"><small>{snapshot.replay ? "MATCH REPLAY" : snapshot.phase.toUpperCase()}</small><b>{snapshot.replay ? "REC" : snapshot.timer}</b><span>{snapshot.message}</span></div>
-        <div className="team-hud enemy"><div><small>HELL AI · LV {aiLevel}</small><b>ABYSS LEGION</b><Pips alive={snapshot.enemyAlive} count={snapshot.count} enemy/></div><div className="team-symbol">♛</div></div>
+        <div className={`team-hud enemy tone-${snapshot.enemyTone}`}><div><small>HELL AI · LV {aiLevel}</small><b>{snapshot.enemyTone === "white" ? "WHITE STONES" : "BLACK STONES"}</b><Pips alive={snapshot.enemyAlive} count={snapshot.count} tone={snapshot.enemyTone}/></div><div className="team-symbol">{snapshot.enemyTone === "white" ? "○" : "●"}</div></div>
 
         <aside className="stone-readout">
-          <div className="selected-concept-portrait" role="img" aria-label={`${snapshot.selectedName} 3D 원화 렌더`} style={{ backgroundPosition: `${snapshot.selectedPortrait[0] * 25}% ${snapshot.selectedPortrait[1] * 100}%` }}><span>3D MODEL SOURCE</span></div>
+          <div className={`selected-concept-portrait tone-${snapshot.selectedTone}`} role="img" aria-label={`${snapshot.selectedName} 최초 3D 원화`} style={{ backgroundPosition: `${snapshot.selectedPortrait[0] * 25}% ${snapshot.selectedPortrait[1] * 100}%` }}><span>{snapshot.selectedTone.toUpperCase()} TEAM · ORIGINAL ART</span></div>
           <small>SELECTED 3D CHARACTER</small><h2>{snapshot.selectedName}</h2><em>{snapshot.selectedElement}</em>
+          <div className="skill-card"><small>UNIQUE SKILL</small><b>{snapshot.selectedSkill}</b><p>{snapshot.selectedSkillDescription}</p></div>
           {(["추진", "중량", "내구", "정밀", "회전"] as const).map((label, index) => <div className="stat-line" key={label}><span>{label}</span><i><b style={{ width: `${snapshot.selectedStats[index] * 20}%` }} /></i><strong>{snapshot.selectedStats[index]}</strong></div>)}
         </aside>
 

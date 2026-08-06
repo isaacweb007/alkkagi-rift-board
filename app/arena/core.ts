@@ -47,7 +47,7 @@ export function calculateLaunchVelocity(power: number, drive: number, directionX
   return { vx: directionX / length * speed, vz: directionZ / length * speed, speed };
 }
 
-export function applyEdgeGrip(body: BodyState, dt: number, durability: number, safeRadius = MATCH_RULES.safeRadius): BodyState {
+export function applyEdgeGrip(body: BodyState, dt: number, durability: number, safeRadius = MATCH_RULES.safeRadius, gripMultiplier = 1): BodyState {
   const distance = Math.hypot(body.x, body.z);
   const gripStart = safeRadius - MATCH_RULES.edgeGripWidth;
   if (distance <= gripStart || distance <= 0) return body;
@@ -57,7 +57,7 @@ export function applyEdgeGrip(body: BodyState, dt: number, durability: number, s
   if (outwardSpeed <= 0) return body;
   const gripDepth = clamp((distance - gripStart) / MATCH_RULES.edgeGripWidth, 0, 1);
   const durabilityGrip = 0.82 + clamp(durability, 1, 5) * 0.075;
-  const retainedOutwardSpeed = outwardSpeed * Math.exp(-MATCH_RULES.edgeGripStrength * durabilityGrip * gripDepth * dt);
+  const retainedOutwardSpeed = outwardSpeed * Math.exp(-MATCH_RULES.edgeGripStrength * durabilityGrip * Math.max(0.5, gripMultiplier) * gripDepth * dt);
   const reduction = outwardSpeed - retainedOutwardSpeed;
   return {
     ...body,

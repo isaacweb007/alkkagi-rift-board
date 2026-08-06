@@ -189,12 +189,22 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(engine, /private ringOut/);
   assert.match(engine, /BONUS SHOT/);
   assert.match(engine, /private takeAiShot/);
-  assert.match(engine, /character-roster-3d-v2\.png/);
+  assert.match(engine, /character-roster\.png/);
   assert.match(engine, /private createPortraitTexture/);
   assert.match(engine, /new THREE\.SphereGeometry\(STONE_RADIUS/);
   assert.match(engine, /applyEdgeGrip/);
+  assert.match(engine, /designReference = "\/assets\/board-topdown\.png"/);
+  assert.match(engine, /setAudioSettings/);
+  assert.match(engine, /private tryRescue/);
+  assert.match(component, /WHITE STONES/);
+  assert.match(component, /BLACK STONES/);
+  assert.match(component, /사운드 믹서/);
+  assert.match(styles, /audio-mixer/);
   for (const character of ["몽돌", "브릭 경", "루나벨", "핀치", "번개배달 모모", "비트캣", "세이프티 박사", "제로-볼트", "코멧 키드", "오로라-8"]) {
     assert.match(engine, new RegExp(character));
+  }
+  for (const skill of ["균형 본능", "철벽 성채", "문라이트 커브", "체인 스파크", "블루 부스터", "리듬 뱅크", "긴급 구조", "볼트 카운터", "라스트 코멧", "프리즘 조준"]) {
+    assert.match(engine, new RegExp(skill));
   }
   assert.match(core, /export function solveCircleCollision/);
   assert.match(core, /export function applyEdgeGrip/);

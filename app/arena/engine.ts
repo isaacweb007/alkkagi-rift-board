@@ -4,10 +4,13 @@ import { createReplay, type MatchReplay, type ReplayShot } from "./replay";
 
 export type ArenaKind = "medieval" | "modern" | "future";
 export type MatchMode = "practice" | "ranked";
+export type TeamTone = "black" | "white";
+export type AudioSettings = { master: number; sfx: number; music: number; muted: boolean };
 type Owner = "player" | "enemy";
 type Phase = "demo" | "placement" | "battle" | "result";
 type Stats = [number, number, number, number, number];
 type CharacterStyle = "rookie" | "knight" | "wizard" | "clockwork" | "courier" | "cat" | "safety" | "crystal" | "comet" | "aurora";
+type CharacterSkill = "balance" | "fortress" | "moonCurve" | "chainSpark" | "overdrive" | "beatBank" | "rescue" | "counter" | "finisher" | "prismAim";
 
 export type ArenaSnapshot = {
   phase: Phase;
@@ -19,6 +22,11 @@ export type ArenaSnapshot = {
   selectedElement: string;
   selectedStats: Stats;
   selectedPortrait: readonly [number, number];
+  selectedSkill: string;
+  selectedSkillDescription: string;
+  selectedTone: TeamTone;
+  playerTone: TeamTone;
+  enemyTone: TeamTone;
   playerAlive: number;
   enemyAlive: number;
   count: 3 | 5;
@@ -37,6 +45,9 @@ type Character = {
   accent: number;
   stats: Stats;
   style: CharacterStyle;
+  skill: CharacterSkill;
+  skillName: string;
+  skillDescription: string;
   portrait: readonly [number, number];
   demon?: boolean;
 };
@@ -44,6 +55,7 @@ type Stone = {
   id: string;
   owner: Owner;
   character: Character;
+  tone: TeamTone;
   group: THREE.Group;
   velocity: THREE.Vector2;
   radius: number;
@@ -53,24 +65,26 @@ type Stone = {
   fallVelocity: number;
   spin: number;
   lastImpact: number;
+  skillCharge: number;
 };
 type Particle = { mesh: THREE.Mesh; velocity: THREE.Vector3; life: number; maxLife: number };
 type Arc = { line: THREE.Line; life: number; maxLife: number };
+type Shockwave = { mesh: THREE.Mesh; life: number; maxLife: number };
 
 const PLAYER_ROSTER: Character[] = [
-  { name: "몽돌", element: "earth", elementKo: "공통 · 균형형", color: 0x171922, accent: 0x8fa8ff, stats: [3, 3, 3, 3, 3], style: "rookie", portrait: [0, 0] },
-  { name: "브릭 경", element: "earth", elementKo: "중세 · 수비형", color: 0x171922, accent: 0xd6923f, stats: [2, 5, 5, 2, 1], style: "knight", portrait: [1, 0] },
-  { name: "루나벨", element: "water", elementKo: "중세 · 회전형", color: 0x161822, accent: 0xb85cff, stats: [2, 2, 2, 4, 5], style: "wizard", portrait: [2, 0] },
-  { name: "핀치", element: "lightning", elementKo: "중세 · 연쇄형", color: 0x1b1b22, accent: 0x45d8e8, stats: [5, 2, 2, 3, 3], style: "clockwork", portrait: [3, 0] },
-  { name: "번개배달 모모", element: "lightning", elementKo: "현대 · 속공형", color: 0x10243c, accent: 0x3ccfff, stats: [5, 1, 2, 4, 3], style: "courier", portrait: [4, 0] },
+  { name: "몽돌", element: "earth", elementKo: "공통 · 균형형", color: 0x171922, accent: 0x8fa8ff, stats: [3, 3, 3, 3, 3], style: "rookie", skill: "balance", skillName: "균형 본능", skillDescription: "힘·회전·가장자리 그립이 안정적으로 작동합니다.", portrait: [0, 0] },
+  { name: "브릭 경", element: "earth", elementKo: "중세 · 수비형", color: 0x171922, accent: 0xd6923f, stats: [2, 5, 5, 2, 1], style: "knight", skill: "fortress", skillName: "철벽 성채", skillDescription: "중량이 12% 증가하고 가장자리 버티기가 강해집니다.", portrait: [1, 0] },
+  { name: "루나벨", element: "water", elementKo: "중세 · 회전형", color: 0x161822, accent: 0xb85cff, stats: [2, 2, 2, 4, 5], style: "wizard", skill: "moonCurve", skillName: "문라이트 커브", skillDescription: "회전 궤적이 40% 강화되어 곡선 샷에 유리합니다.", portrait: [2, 0] },
+  { name: "핀치", element: "lightning", elementKo: "중세 · 연쇄형", color: 0x1b1b22, accent: 0x45d8e8, stats: [5, 2, 2, 3, 3], style: "clockwork", skill: "chainSpark", skillName: "체인 스파크", skillDescription: "강한 충돌에 추가 반발과 번개 연쇄 효과를 냅니다.", portrait: [3, 0] },
+  { name: "번개배달 모모", element: "lightning", elementKo: "현대 · 속공형", color: 0x10243c, accent: 0x3ccfff, stats: [5, 1, 2, 4, 3], style: "courier", skill: "overdrive", skillName: "블루 부스터", skillDescription: "발사 초속이 10% 증가하는 고속 돌진형입니다.", portrait: [4, 0] },
 ];
 
 const DEMON_ROSTER: Character[] = [
-  { name: "비트캣", element: "thunder", elementKo: "현대 · 뱅크형", color: 0x151823, accent: 0xef58ff, stats: [3, 2, 2, 4, 4], style: "cat", portrait: [0, 1], demon: true },
-  { name: "세이프티 박사", element: "earth", elementKo: "현대 · 구출형", color: 0x2a2417, accent: 0xffbf32, stats: [2, 4, 4, 4, 1], style: "safety", portrait: [1, 1], demon: true },
-  { name: "제로-볼트", element: "lightning", elementKo: "미래 · 카운터형", color: 0x121f22, accent: 0x36f1ec, stats: [4, 4, 3, 2, 2], style: "crystal", portrait: [2, 1], demon: true },
-  { name: "코멧 키드", element: "fire", elementKo: "미래 · 피니셔", color: 0x241518, accent: 0xff5a2f, stats: [5, 3, 2, 1, 4], style: "comet", portrait: [3, 1], demon: true },
-  { name: "오로라-8", element: "void", elementKo: "미래 · 정밀형", color: 0x151827, accent: 0x8af7ff, stats: [1, 3, 4, 5, 2], style: "aurora", portrait: [4, 1], demon: true },
+  { name: "비트캣", element: "thunder", elementKo: "현대 · 뱅크형", color: 0x151823, accent: 0xef58ff, stats: [3, 2, 2, 4, 4], style: "cat", skill: "beatBank", skillName: "리듬 뱅크", skillDescription: "정밀 가이드와 회전력이 함께 강화됩니다.", portrait: [0, 1], demon: true },
+  { name: "세이프티 박사", element: "earth", elementKo: "현대 · 구출형", color: 0x2a2417, accent: 0xffbf32, stats: [2, 4, 4, 4, 1], style: "safety", skill: "rescue", skillName: "긴급 구조", skillDescription: "경기당 한 번, 저속 추락을 판 위로 구조합니다.", portrait: [1, 1], demon: true },
+  { name: "제로-볼트", element: "lightning", elementKo: "미래 · 카운터형", color: 0x121f22, accent: 0x36f1ec, stats: [4, 4, 3, 2, 2], style: "crystal", skill: "counter", skillName: "볼트 카운터", skillDescription: "충돌 저항과 중량이 증가해 정면 대결에 강합니다.", portrait: [2, 1], demon: true },
+  { name: "코멧 키드", element: "fire", elementKo: "미래 · 피니셔", color: 0x241518, accent: 0xff5a2f, stats: [5, 3, 2, 1, 4], style: "comet", skill: "finisher", skillName: "라스트 코멧", skillDescription: "85 이상의 강공에서 추진력이 12% 추가 상승합니다.", portrait: [3, 1], demon: true },
+  { name: "오로라-8", element: "void", elementKo: "미래 · 정밀형", color: 0x151827, accent: 0x8af7ff, stats: [1, 3, 4, 5, 2], style: "aurora", skill: "prismAim", skillName: "프리즘 조준", skillDescription: "조준 가이드가 길어지고 AI 오차가 크게 줄어듭니다.", portrait: [4, 1], demon: true },
 ];
 
 const ARENA_COLORS: Record<ArenaKind, { board: number; edge: number; hazard: number; fog: number }> = {
@@ -102,6 +116,7 @@ export class Alkkagi3DEngine {
   private board: THREE.Mesh;
   private edgeRing: THREE.Mesh;
   private gripRing: THREE.Mesh;
+  private heritageRing: THREE.Mesh;
   private rosterTexture: THREE.Texture;
   private rosterReady = false;
   private decor = new THREE.Group();
@@ -111,6 +126,7 @@ export class Alkkagi3DEngine {
   private stones: Stone[] = [];
   private particles: Particle[] = [];
   private arcs: Arc[] = [];
+  private shockwaves: Shockwave[] = [];
   private phase: Phase = "demo";
   private active: Owner = "player";
   private first: Owner = "player";
@@ -118,6 +134,8 @@ export class Alkkagi3DEngine {
   private count: 3 | 5 = 3;
   private aiLevel = 3;
   private arena: ArenaKind = "modern";
+  private playerTone: TeamTone = "white";
+  private enemyTone: TeamTone = "black";
   private selected: Stone | null = null;
   private draggingPlacement = false;
   private aiming = false;
@@ -134,8 +152,13 @@ export class Alkkagi3DEngine {
   private bonus = false;
   private cameraShake = 0;
   private token = 0;
-  private sound = true;
   private audio: AudioContext | null = null;
+  private masterGain: GainNode | null = null;
+  private sfxGain: GainNode | null = null;
+  private musicGain: GainNode | null = null;
+  private audioSettings: AudioSettings = { master: 0.8, sfx: 0.9, music: 0.35, muted: false };
+  private musicTimer = 0;
+  private musicStep = 0;
   private disposed = false;
   private replayMode = false;
   private replayQueue: ReplayShot[] = [];
@@ -157,7 +180,7 @@ export class Alkkagi3DEngine {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.2;
     this.container.appendChild(this.renderer.domElement);
-    this.rosterTexture = new THREE.TextureLoader().load("/assets/character-roster-3d-v2.png", (texture) => {
+    this.rosterTexture = new THREE.TextureLoader().load("/assets/character-roster.png", (texture) => {
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.minFilter = THREE.LinearMipmapLinearFilter;
       texture.magFilter = THREE.LinearFilter;
@@ -192,6 +215,13 @@ export class Alkkagi3DEngine {
     this.edgeRing.rotation.x = Math.PI / 2;
     this.edgeRing.position.y = 0.32;
     this.scene.add(this.edgeRing);
+    this.heritageRing = new THREE.Mesh(
+      new THREE.TorusGeometry(BOARD_RADIUS - 0.19, 0.13, 12, 128),
+      new THREE.MeshStandardMaterial({ color: 0x8f6330, emissive: 0x2a1608, emissiveIntensity: 0.45, metalness: 0.88, roughness: 0.28 }),
+    );
+    this.heritageRing.rotation.x = Math.PI / 2;
+    this.heritageRing.position.y = 0.335;
+    this.scene.add(this.heritageRing);
     this.gripRing = new THREE.Mesh(
       new THREE.TorusGeometry(SAFE_RADIUS - MATCH_RULES.edgeGripWidth * 0.48, MATCH_RULES.edgeGripWidth * 0.48, 2, 128),
       new THREE.MeshBasicMaterial({ color: 0x70efff, transparent: true, opacity: 0.055, depthWrite: false }),
@@ -221,16 +251,26 @@ export class Alkkagi3DEngine {
     this.animate();
   }
 
-  setSound(value: boolean) {
-    this.sound = value;
+  setAudioSettings(settings: AudioSettings) {
+    this.audioSettings = {
+      master: THREE.MathUtils.clamp(settings.master, 0, 1),
+      sfx: THREE.MathUtils.clamp(settings.sfx, 0, 1),
+      music: THREE.MathUtils.clamp(settings.music, 0, 1),
+      muted: settings.muted,
+    };
+    this.applyAudioGains();
   }
 
   setArena(kind: ArenaKind) {
     this.arena = kind;
     const colors = ARENA_COLORS[kind];
     const materials = this.board.material as THREE.Material[];
+    const side = materials[0] as THREE.MeshStandardMaterial;
     const top = materials[1] as THREE.MeshStandardMaterial;
-    top.color.setHex(colors.board);
+    side.color.setHex(colors.board);
+    top.color.setHex(0xffffff);
+    top.emissive.setHex(colors.edge);
+    top.emissiveIntensity = 0.035;
     (this.edgeRing.material as THREE.MeshStandardMaterial).color.setHex(colors.edge);
     (this.edgeRing.material as THREE.MeshStandardMaterial).emissive.setHex(colors.edge);
     (this.gripRing.material as THREE.MeshBasicMaterial).color.setHex(colors.edge);
@@ -245,6 +285,8 @@ export class Alkkagi3DEngine {
     this.replayQueue = [];
     this.currentReplay = null;
     this.phase = "demo";
+    this.playerTone = "white";
+    this.enemyTone = "black";
     this.message = "3D ENGINE READY";
     this.winner = null;
     this.bonus = false;
@@ -265,6 +307,8 @@ export class Alkkagi3DEngine {
     this.replayTotalShots = 0;
     this.replayExpectedWinner = null;
     this.phase = "placement";
+    this.playerTone = Math.random() < 0.5 ? "white" : "black";
+    this.enemyTone = this.playerTone === "white" ? "black" : "white";
     this.first = Math.random() < 0.5 ? "player" : "enemy";
     this.currentReplay = createReplay({
       id: crypto.randomUUID(),
@@ -322,6 +366,8 @@ export class Alkkagi3DEngine {
     this.replayTotalShots = replay.shots.length;
     this.replayExpectedWinner = replay.winner;
     this.phase = "battle";
+    this.playerTone = replay.id.charCodeAt(replay.id.length - 1) % 2 === 0 ? "white" : "black";
+    this.enemyTone = this.playerTone === "white" ? "black" : "white";
     this.first = replay.first;
     this.active = replay.first;
     this.winner = null;
@@ -365,43 +411,84 @@ export class Alkkagi3DEngine {
       }
     });
     this.rosterTexture.dispose();
+    if (this.musicTimer) window.clearInterval(this.musicTimer);
     this.renderer.dispose();
     this.container.replaceChildren();
     this.audio?.close().catch(() => {});
   }
 
   private createBoardMaterials(): THREE.Material[] {
-    const texture = this.createGridTexture();
+    const texture = this.createOriginalBoardTexture();
     return [
       new THREE.MeshStandardMaterial({ color: 0x080c13, roughness: 0.28, metalness: 0.82 }),
-      new THREE.MeshStandardMaterial({ color: 0x111c29, map: texture, roughness: 0.44, metalness: 0.55 }),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, map: texture, roughness: 0.58, metalness: 0.38 }),
       new THREE.MeshStandardMaterial({ color: 0x05070b, roughness: 0.5, metalness: 0.7 }),
     ];
   }
 
-  private createGridTexture(): THREE.CanvasTexture {
+  private createOriginalBoardTexture(): THREE.CanvasTexture {
     const canvas = document.createElement("canvas");
     canvas.width = canvas.height = 1024;
     const context = canvas.getContext("2d")!;
-    const radial = context.createRadialGradient(512, 512, 80, 512, 512, 510);
-    radial.addColorStop(0, "#243346");
-    radial.addColorStop(0.75, "#111b28");
-    radial.addColorStop(1, "#080c12");
+    const radial = context.createRadialGradient(430, 390, 20, 512, 512, 510);
+    radial.addColorStop(0, "#343638");
+    radial.addColorStop(0.48, "#1c1e21");
+    radial.addColorStop(0.86, "#111316");
+    radial.addColorStop(1, "#08090b");
     context.fillStyle = radial;
     context.fillRect(0, 0, 1024, 1024);
-    context.strokeStyle = "rgba(160,205,230,.25)";
-    context.lineWidth = 2;
-    for (let index = 0; index < 19; index += 1) {
-      const value = 92 + index * 46.7;
-      context.beginPath(); context.moveTo(92, value); context.lineTo(932, value); context.stroke();
-      context.beginPath(); context.moveTo(value, 92); context.lineTo(value, 932); context.stroke();
+
+    for (let index = 0; index < 720; index += 1) {
+      const angle = index * 2.399963;
+      const radius = 40 + ((index * 73) % 460);
+      const alpha = 0.018 + (index % 5) * 0.005;
+      context.fillStyle = `rgba(220,205,176,${alpha})`;
+      context.fillRect(512 + Math.cos(angle) * radius, 512 + Math.sin(angle) * radius, 1 + index % 3, 1 + index % 2);
     }
-    context.strokeStyle = "rgba(90,230,255,.35)";
-    context.lineWidth = 4;
-    context.beginPath(); context.arc(512, 512, 438, 0, Math.PI * 2); context.stroke();
+
+    context.strokeStyle = "rgba(194,148,82,.28)";
+    context.lineWidth = 2;
+    for (let index = 0; index < 24; index += 1) {
+      const angle = index / 24 * Math.PI * 2;
+      context.beginPath();
+      context.moveTo(512 + Math.cos(angle) * 118, 512 + Math.sin(angle) * 118);
+      context.lineTo(512 + Math.cos(angle) * 474, 512 + Math.sin(angle) * 474);
+      context.stroke();
+    }
+
+    context.strokeStyle = "rgba(216,165,92,.66)";
+    context.lineWidth = 5;
+    for (const radius of [104, 124, 470, 486]) {
+      context.beginPath();
+      context.arc(512, 512, radius, 0, Math.PI * 2);
+      context.stroke();
+    }
+
+    context.save();
+    context.translate(512, 512);
+    context.fillStyle = "rgba(181,126,55,.82)";
+    context.strokeStyle = "rgba(246,204,124,.82)";
+    context.lineWidth = 3;
+    for (let index = 0; index < 12; index += 1) {
+      context.save();
+      context.rotate(index / 12 * Math.PI * 2);
+      context.beginPath();
+      context.ellipse(0, -61, 17, 54, 0, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+      context.restore();
+    }
+    context.fillStyle = "#20170f";
+    context.beginPath();
+    context.arc(0, 0, 28, 0, Math.PI * 2);
+    context.fill();
+    context.stroke();
+    context.restore();
+
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+    texture.userData.designReference = "/assets/board-topdown.png";
     return texture;
   }
 
@@ -449,30 +536,37 @@ export class Alkkagi3DEngine {
     const enemyZ = demo ? -2.0 : -2.35;
     for (let index = 0; index < count; index += 1) {
       const offset = (index - (count - 1) / 2) * (count === 3 ? 1.55 : 1.14);
-      const player = this.createStone(PLAYER_ROSTER[index % PLAYER_ROSTER.length], "player", index);
+      const player = this.createStone(PLAYER_ROSTER[index % PLAYER_ROSTER.length], "player", index, this.playerTone);
       player.group.position.set(offset, 0.55, playerZ + Math.abs(offset) * 0.12);
       this.stones.push(player);
-      const enemy = this.createStone(DEMON_ROSTER[index % DEMON_ROSTER.length], "enemy", index);
+      const enemy = this.createStone(DEMON_ROSTER[index % DEMON_ROSTER.length], "enemy", index, this.enemyTone);
       enemy.group.position.set(-offset, 0.55, enemyZ - Math.abs(offset) * 0.12);
       enemy.group.rotation.y = Math.PI;
       this.stones.push(enemy);
     }
   }
 
-  private createStone(character: Character, owner: Owner, index: number): Stone {
+  private createStone(character: Character, owner: Owner, index: number, tone: TeamTone): Stone {
     const group = new THREE.Group();
-    const bodyMaterial = new THREE.MeshPhysicalMaterial({ color: character.color, roughness: 0.28, metalness: 0.48, clearcoat: 0.8, clearcoatRoughness: 0.2, emissive: character.accent, emissiveIntensity: 0.08 });
+    const bodyColor = tone === "white" ? 0xe8e5dc : 0x111319;
+    const bodyMaterial = new THREE.MeshPhysicalMaterial({ color: bodyColor, roughness: tone === "white" ? 0.2 : 0.3, metalness: 0.34, clearcoat: 0.9, clearcoatRoughness: 0.16, emissive: character.accent, emissiveIntensity: tone === "white" ? 0.025 : 0.075 });
     const body = new THREE.Mesh(new THREE.SphereGeometry(STONE_RADIUS, 48, 28), bodyMaterial);
     body.scale.set(1, 0.74, 1);
     body.position.y = 0.13;
     body.castShadow = true;
     body.receiveShadow = true;
     group.add(body);
-    const baseMaterial = new THREE.MeshStandardMaterial({ color: 0x090b10, roughness: 0.32, metalness: 0.72 });
+    const baseMaterial = new THREE.MeshStandardMaterial({ color: tone === "white" ? 0xbcb9b1 : 0x07090d, roughness: 0.3, metalness: 0.74 });
     const base = new THREE.Mesh(new THREE.CylinderGeometry(STONE_RADIUS * 0.82, STONE_RADIUS * 0.9, 0.11, 48), baseMaterial);
     base.position.y = -0.12;
     base.castShadow = true;
     group.add(base);
+    const teamBandMaterial = new THREE.MeshStandardMaterial({ color: tone === "white" ? 0xffffff : 0x050609, emissive: tone === "white" ? 0x8c8c82 : 0x000000, emissiveIntensity: tone === "white" ? 0.35 : 0, metalness: 0.82, roughness: 0.2 });
+    const teamBand = new THREE.Mesh(new THREE.TorusGeometry(STONE_RADIUS * 0.94, 0.052, 10, 48), teamBandMaterial);
+    teamBand.rotation.x = Math.PI / 2;
+    teamBand.position.y = -0.105;
+    teamBand.castShadow = true;
+    group.add(teamBand);
     const rimMaterial = new THREE.MeshStandardMaterial({ color: character.accent, emissive: character.accent, emissiveIntensity: 1.3, metalness: 0.65, roughness: 0.22 });
     const rim = new THREE.Mesh(new THREE.TorusGeometry(STONE_RADIUS * 0.88, 0.035, 10, 48), rimMaterial);
     rim.rotation.x = Math.PI / 2;
@@ -516,15 +610,17 @@ export class Alkkagi3DEngine {
       id: `${owner}-${index}`,
       owner,
       character,
+      tone,
       group,
       velocity: new THREE.Vector2(),
       radius: STONE_RADIUS,
-      mass: 0.72 + character.stats[1] * 0.17,
+      mass: (0.72 + character.stats[1] * 0.17) * (character.skill === "fortress" ? 1.12 : character.skill === "counter" ? 1.08 : 1),
       alive: true,
       falling: false,
       fallVelocity: 0,
       spin: 0,
       lastImpact: 0,
+      skillCharge: character.skill === "rescue" ? 1 : 0,
     };
   }
 
@@ -678,14 +774,15 @@ export class Alkkagi3DEngine {
     for (const current of this.stones) {
       const body = current.group.children[0] as THREE.Mesh;
       const material = body.material as THREE.MeshPhysicalMaterial;
-      material.emissiveIntensity = current === stone ? 0.42 : 0.08;
+      material.emissiveIntensity = current === stone ? 0.42 : current.tone === "white" ? 0.025 : 0.075;
     }
     this.selected = stone;
     this.emit();
   }
 
   private emit() {
-    const selected = this.selected?.character || PLAYER_ROSTER[0];
+    const selectedStone = this.selected;
+    const selected = selectedStone?.character || PLAYER_ROSTER[0];
     this.emitSnapshot({
       phase: this.phase,
       timer: this.timer,
@@ -696,6 +793,11 @@ export class Alkkagi3DEngine {
       selectedElement: selected.elementKo,
       selectedStats: selected.stats,
       selectedPortrait: selected.portrait,
+      selectedSkill: selected.skillName,
+      selectedSkillDescription: selected.skillDescription,
+      selectedTone: selectedStone?.tone || this.playerTone,
+      playerTone: this.playerTone,
+      enemyTone: this.enemyTone,
       playerAlive: this.stones.filter((stone) => stone.owner === "player" && stone.alive).length,
       enemyAlive: this.stones.filter((stone) => stone.owner === "enemy" && stone.alive).length,
       count: this.count,
@@ -760,7 +862,8 @@ export class Alkkagi3DEngine {
     this.power = THREE.MathUtils.clamp(drag.length() / 3.1 * 100, 0, 100);
     const direction = drag.lengthSq() > 0 ? drag.normalize() : new THREE.Vector2(0, -1);
     const precision = this.selected.character.stats[3];
-    const guideLength = 1.4 + precision * 0.38;
+    const skillGuide = this.selected.character.skill === "prismAim" ? 1.32 : this.selected.character.skill === "beatBank" ? 1.16 : 1;
+    const guideLength = (1.4 + precision * 0.38) * skillGuide;
     const points = [
       new THREE.Vector3(stonePosition.x, 0.79, stonePosition.z),
       new THREE.Vector3(stonePosition.x + direction.x * guideLength, 0.79, stonePosition.z + direction.y * guideLength),
@@ -836,15 +939,18 @@ export class Alkkagi3DEngine {
     }
     const durability = stone.character.stats[2];
     const launch = calculateLaunchVelocity(power, stone.character.stats[0], direction.x, direction.y);
-    stone.velocity.set(launch.vx, launch.vz);
-    stone.spin = spin * (0.35 + stone.character.stats[4] * 0.12);
+    const launchMultiplier = stone.character.skill === "overdrive" ? 1.1 : stone.character.skill === "finisher" && power >= 85 ? 1.12 : 1;
+    const spinMultiplier = stone.character.skill === "moonCurve" ? 1.4 : stone.character.skill === "beatBank" ? 1.25 : 1;
+    stone.velocity.set(launch.vx * launchMultiplier, launch.vz * launchMultiplier);
+    stone.spin = spin * (0.35 + stone.character.stats[4] * 0.12) * spinMultiplier;
     this.shotMoving = true;
     this.shotOwner = stone.owner;
     this.eliminatedThisShot = [];
     this.stableTime = 0;
     this.power = 0;
     this.bonus = false;
-    this.message = power >= 90 ? "MAX POWER!" : durability >= 4 ? "HEAVY STRIKE" : "SHOT RELEASED";
+    const skillTriggered = launchMultiplier > 1 || spinMultiplier > 1;
+    this.message = skillTriggered ? `${stone.character.skillName}!` : power >= 90 ? "MAX POWER!" : durability >= 4 ? "HEAVY STRIKE" : "SHOT RELEASED";
     this.playLaunch(stone.character.element, power);
     this.emit();
   }
@@ -864,13 +970,14 @@ export class Alkkagi3DEngine {
         continue;
       }
       if (!stone.alive || !this.shotMoving) continue;
-      const gripped = applyEdgeGrip({ x: stone.group.position.x, z: stone.group.position.z, vx: stone.velocity.x, vz: stone.velocity.y, radius: stone.radius, mass: stone.mass }, dt, stone.character.stats[2]);
+      const gripMultiplier = stone.character.skill === "fortress" ? 1.28 : stone.character.skill === "balance" ? 1.08 : 1;
+      const gripped = applyEdgeGrip({ x: stone.group.position.x, z: stone.group.position.z, vx: stone.velocity.x, vz: stone.velocity.y, radius: stone.radius, mass: stone.mass }, dt, stone.character.stats[2], SAFE_RADIUS, gripMultiplier);
       const integrated = integrateBody(gripped, dt, stone.character.stats[2], stone.spin);
       stone.group.position.x = integrated.x;
       stone.group.position.z = integrated.z;
       stone.velocity.set(integrated.vx, integrated.vz);
       stone.group.rotation.y += stone.velocity.length() * dt * 0.65;
-      if (isRingOut(stone.group.position.x, stone.group.position.z)) this.ringOut(stone);
+      if (isRingOut(stone.group.position.x, stone.group.position.z) && !this.tryRescue(stone)) this.ringOut(stone);
     }
     if (!this.shotMoving) return;
     for (let firstIndex = 0; firstIndex < this.stones.length; firstIndex += 1) {
@@ -889,7 +996,8 @@ export class Alkkagi3DEngine {
   }
 
   private resolveCollision(first: Stone, second: Stone) {
-    const restitution = 0.76 + (first.character.stats[2] + second.character.stats[2]) * 0.012;
+    const chainBonus = first.character.skill === "chainSpark" || second.character.skill === "chainSpark" ? 0.035 : 0;
+    const restitution = 0.76 + (first.character.stats[2] + second.character.stats[2]) * 0.012 + chainBonus;
     const collision = solveCircleCollision(
       { x: first.group.position.x, z: first.group.position.z, vx: first.velocity.x, vz: first.velocity.y, radius: first.radius, mass: first.mass },
       { x: second.group.position.x, z: second.group.position.z, vx: second.velocity.x, vz: second.velocity.y, radius: second.radius, mass: second.mass },
@@ -922,6 +1030,23 @@ export class Alkkagi3DEngine {
     this.playFall(stone);
     this.message = stone.owner === "enemy" ? `${stone.character.name} RING-OUT!` : `${stone.character.name}이 심연으로 추락!`;
     this.emit();
+  }
+
+  private tryRescue(stone: Stone): boolean {
+    if (stone.character.skill !== "rescue" || stone.skillCharge <= 0 || stone.velocity.length() > 4.6) return false;
+    const distance = Math.hypot(stone.group.position.x, stone.group.position.z) || 1;
+    const normalX = stone.group.position.x / distance;
+    const normalZ = stone.group.position.z / distance;
+    stone.skillCharge -= 1;
+    stone.group.position.x = normalX * (SAFE_RADIUS - 0.16);
+    stone.group.position.z = normalZ * (SAFE_RADIUS - 0.16);
+    stone.velocity.set(-normalX * 0.82, -normalZ * 0.82);
+    stone.spin *= 0.4;
+    this.message = `${stone.character.skillName}! · 추락 방지`;
+    this.spawnImpact(stone.group.position.clone(), "earth", 3.8);
+    this.playTone(380, 0.18, 0.055, 920, "triangle");
+    this.emit();
+    return true;
   }
 
   private resolveShot() {
@@ -1015,7 +1140,8 @@ export class Alkkagi3DEngine {
     })[0];
     this.selectStone(shooter);
     const direction = new THREE.Vector2(target.group.position.x - shooter.group.position.x, target.group.position.z - shooter.group.position.z).normalize();
-    const error = THREE.MathUtils.degToRad((11 - this.aiLevel) * THREE.MathUtils.randFloat(-1.5, 1.5));
+    const skillPrecision = shooter.character.skill === "prismAim" ? 0.52 : shooter.character.skill === "beatBank" ? 0.76 : 1;
+    const error = THREE.MathUtils.degToRad((11 - this.aiLevel) * THREE.MathUtils.randFloat(-1.5, 1.5) * skillPrecision);
     direction.rotateAround(new THREE.Vector2(), error);
     const power = THREE.MathUtils.clamp(65 + this.aiLevel * 2.2 + THREE.MathUtils.randFloat(-10, 12), 50, 98);
     this.launch(shooter, direction, power, THREE.MathUtils.randFloatSpread(0.35));
@@ -1032,6 +1158,15 @@ export class Alkkagi3DEngine {
       this.particles.push({ mesh, velocity, life: 0.42 + Math.random() * 0.35, maxLife: 0.77 });
     }
     if (element === "lightning" || element === "thunder" || element === "void") this.spawnArc(position, color);
+    const shockwave = new THREE.Mesh(
+      new THREE.TorusGeometry(0.18, 0.026, 8, 48),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.92, depthWrite: false }),
+    );
+    shockwave.rotation.x = Math.PI / 2;
+    shockwave.position.copy(position);
+    shockwave.position.y = 0.64;
+    this.scene.add(shockwave);
+    this.shockwaves.push({ mesh: shockwave, life: 0.36, maxLife: 0.36 });
     const flash = new THREE.PointLight(color, Math.min(22, 6 + strength * 3), 4.5, 2);
     flash.position.copy(position);
     this.scene.add(flash);
@@ -1075,6 +1210,19 @@ export class Alkkagi3DEngine {
       (arc.line.material as THREE.Material).dispose();
       return false;
     });
+    for (const shockwave of this.shockwaves) {
+      shockwave.life -= dt;
+      const progress = 1 - Math.max(0, shockwave.life) / shockwave.maxLife;
+      shockwave.mesh.scale.setScalar(1 + progress * 6.5);
+      (shockwave.mesh.material as THREE.MeshBasicMaterial).opacity = Math.max(0, (1 - progress) * 0.92);
+    }
+    this.shockwaves = this.shockwaves.filter((shockwave) => {
+      if (shockwave.life > 0) return true;
+      this.scene.remove(shockwave.mesh);
+      shockwave.mesh.geometry.dispose();
+      (shockwave.mesh.material as THREE.Material).dispose();
+      return false;
+    });
   }
 
   private elementColor(element: string): number {
@@ -1082,12 +1230,52 @@ export class Alkkagi3DEngine {
   }
 
   private ensureAudio() {
-    if (!this.sound || this.audio) return;
+    if (this.audio) {
+      if (this.audio.state === "suspended") this.audio.resume().catch(() => {});
+      return;
+    }
     this.audio = new AudioContext();
+    this.masterGain = this.audio.createGain();
+    this.sfxGain = this.audio.createGain();
+    this.musicGain = this.audio.createGain();
+    this.sfxGain.connect(this.masterGain);
+    this.musicGain.connect(this.masterGain);
+    this.masterGain.connect(this.audio.destination);
+    this.applyAudioGains();
+    this.startMusic();
   }
 
-  private playTone(start: number, duration: number, volume: number, end = start, type: OscillatorType = "sine") {
-    if (!this.sound) return;
+  private applyAudioGains() {
+    if (!this.audio || !this.masterGain || !this.sfxGain || !this.musicGain) return;
+    const now = this.audio.currentTime;
+    const master = this.audioSettings.muted ? 0 : this.audioSettings.master ** 2;
+    this.masterGain.gain.setTargetAtTime(master, now, 0.025);
+    this.sfxGain.gain.setTargetAtTime(this.audioSettings.sfx ** 2, now, 0.025);
+    this.musicGain.gain.setTargetAtTime(this.audioSettings.music ** 2, now, 0.04);
+  }
+
+  private startMusic() {
+    if (this.musicTimer) return;
+    this.playMusicPulse();
+    this.musicTimer = window.setInterval(() => this.playMusicPulse(), 2200);
+  }
+
+  private playMusicPulse() {
+    if (this.audioSettings.muted || this.audioSettings.music <= 0.01) return;
+    const roots: Record<ArenaKind, number[]> = {
+      medieval: [55, 65.41, 73.42, 82.41],
+      modern: [65.41, 82.41, 98, 110],
+      future: [49, 61.74, 73.42, 92.5],
+    };
+    const notes = roots[this.arena];
+    const root = notes[this.musicStep % notes.length];
+    this.musicStep += 1;
+    this.playTone(root, 1.85, 0.045, root * 1.015, "sine", "music");
+    this.playTone(root * 2, 0.72, 0.018, root * 1.5, "triangle", "music");
+  }
+
+  private playTone(start: number, duration: number, volume: number, end = start, type: OscillatorType = "sine", channel: "sfx" | "music" = "sfx") {
+    if (this.audioSettings.muted || (channel === "sfx" ? this.audioSettings.sfx : this.audioSettings.music) <= 0.01) return;
     this.ensureAudio();
     if (!this.audio) return;
     const now = this.audio.currentTime;
@@ -1099,7 +1287,9 @@ export class Alkkagi3DEngine {
     gain.gain.setValueAtTime(0.0001, now);
     gain.gain.exponentialRampToValueAtTime(volume, now + 0.012);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-    oscillator.connect(gain).connect(this.audio.destination);
+    const bus = channel === "music" ? this.musicGain : this.sfxGain;
+    if (!bus) return;
+    oscillator.connect(gain).connect(bus);
     oscillator.start(now);
     oscillator.stop(now + duration + 0.03);
   }
@@ -1112,6 +1302,7 @@ export class Alkkagi3DEngine {
   private playImpact(element: string, strength: number) {
     const volume = Math.min(0.09, 0.025 + strength * 0.007);
     this.playTone(250 + strength * 24, 0.09, volume, 90 + strength * 5, "triangle");
+    this.playTone(78 + strength * 3, 0.22, volume * 0.72, 34, "sine");
     if (element === "lightning") this.playTone(1400, 0.1, volume * 0.55, 240, "sawtooth");
     if (element === "thunder") this.playTone(105, 0.36, volume, 36, "sine");
     if (element === "water") this.playTone(880, 0.18, volume * 0.55, 330, "sine");
