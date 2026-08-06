@@ -224,6 +224,12 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(engine, /private createFaceTexture/);
   assert.match(engine, /characterFace/);
   assert.match(engine, /contactShadow/);
+  assert.match(engine, /RoomEnvironment/);
+  assert.match(engine, /private beginCameraOrbit/);
+  assert.match(engine, /private onWheel/);
+  assert.match(engine, /private spawnElementSignature/);
+  assert.match(engine, /private spawnRingOutVortex/);
+  assert.match(engine, /blinkOffset/);
   assert.match(engine, /applyEdgeGrip/);
   assert.match(engine, /designReference = GOLDEN_ART\.boardReference/);
   assert.match(engine, /setAudioSettings/);
@@ -237,7 +243,11 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(component, /TeamRail/);
   assert.match(component, /power-dial/);
   assert.match(component, /aria-live="polite"/);
+  assert.match(component, /data-testid="reset-camera"/);
+  assert.match(component, /360° 회전/);
   assert.match(styles, /audio-mixer/);
+  assert.match(styles, /camera-reset/);
+  assert.match(styles, /camera-parallax/);
   for (const character of ["몽돌", "브릭 경", "루나벨", "핀치", "번개배달 모모", "비트캣", "세이프티 박사", "제로-볼트", "코멧 키드", "오로라-8"]) {
     assert.match(engine, new RegExp(character));
   }

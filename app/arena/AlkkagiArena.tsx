@@ -217,7 +217,7 @@ export default function AlkkagiArena() {
       </aside>}
 
       {screen === "lobby" && <section className="arena-lobby">
-        <div className="engine-badge"><i /> GOLDEN ART SYNC · PBR 3D <small>ALPHA 0.7</small></div>
+        <div className="engine-badge"><i /> GOLDEN ART SYNC · PBR 3D <small>ALPHA 0.8</small></div>
         <h1>당겨서<br/><em>심연으로.</em></h1>
         <p>확정된 10종 캐릭터 원화와 아레나 원화를 하나의 골든 아트 규격으로 연결했습니다. 매 경기 흑돌과 백돌 진영이 무작위로 정해지며, 고유 장비와 스킬은 팀 색상과 관계없이 그대로 유지됩니다.</p>
 
@@ -240,7 +240,7 @@ export default function AlkkagiArena() {
         </button>
 
         <div className="ai-level-control"><span>지옥 AI 위험도</span><input type="range" min="1" max="10" value={aiLevel} onChange={(event) => setAiLevel(Number(event.target.value))}/><b>LV {aiLevel}</b></div>
-        <div className="engine-proof"><span><i>B/W</i> RANDOM<br/><small>CLEAR TEAMS</small></span><span><i>10</i> SKILLS<br/><small>LIVE PHYSICS</small></span><span><i>3CH</i> MIXER<br/><small>MUSIC · SFX</small></span></div>
+        <div className="engine-proof"><span><i>B/W</i> RANDOM<br/><small>CLEAR TEAMS</small></span><span><i>10</i> SKILLS<br/><small>LIVE PHYSICS</small></span><span><i>360°</i> ORBIT<br/><small>DRAG · ZOOM</small></span><span><i>3CH</i> MIXER<br/><small>MUSIC · SFX</small></span></div>
       </section>}
 
       {screen === "match" && <section className="arena-match-ui">
@@ -278,7 +278,8 @@ export default function AlkkagiArena() {
         </div>}
         {!snapshot.replay && snapshot.phase === "placement" && <button data-testid="confirm-placement" className="ready-3d" onClick={() => engineRef.current?.confirmPlacement()}>배치 확정 <b>READY</b></button>}
         <button data-testid="leave-arena" className="leave-3d" onClick={returnLobby}>← 로비</button>
-        {!snapshot.replay && <div className="input-help"><span>클릭 + 드래그: 반대로 당기기</span><span>청록 링: EDGE GRIP ZONE</span><span>Q / E: 회전 · ESC: 취소</span></div>}
+        <button data-testid="reset-camera" className="camera-reset" onClick={() => engineRef.current?.resetCamera()} aria-label="3D 카메라 시점 초기화"><b>360°</b><span>VIEW RESET</span></button>
+        {!snapshot.replay && <div className="input-help"><span>돌 드래그: 조준 · 발사</span><span>빈 공간/우클릭 드래그: 360° 회전</span><span>휠: 줌 · C: 카메라 리셋 · Q/E: 스핀</span></div>}
 
         {snapshot.phase === "result" && <div className={`result-3d ${snapshot.winner === "player" ? "win" : "loss"}`}><div><small>{snapshot.replay ? "MATCH ARCHIVE COMPLETE" : snapshot.winner === "player" ? "ARENA SURVIVOR" : "FALLEN INTO THE RIFT"}</small><h2>{snapshot.replay ? "재생 완료" : snapshot.winner === "player" ? "승리!" : "패배"}</h2><p>{snapshot.replay ? "배치와 모든 샷 이벤트를 실제 3D 물리로 다시 재생했습니다." : snapshot.winner === "player" ? "마지막 돌이 3D 아레나 위에 남았습니다." : "심연의 군단이 판을 장악했습니다."}</p><button onClick={snapshot.replay ? playLastReplay : () => start(snapshot.count, "practice")}>{snapshot.replay ? "다시 보기" : "다시 대전"}</button><button onClick={returnLobby}>{snapshot.replay ? "리플레이 종료" : "로비로"}</button></div></div>}
       </section>}
