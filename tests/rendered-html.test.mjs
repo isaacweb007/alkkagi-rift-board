@@ -29,15 +29,16 @@ async function render() {
   );
 }
 
-test("server-renders the concept-book shell", async () => {
+test("server-renders the playable 3D arena at the root URL", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /알까기: 시공의 판 — Visual Concept Bible/);
-  assert.match(html, /<iframe[^>]+src="\/ALKAGI_CONCEPT_BOOK\.html"/i);
-  assert.match(html, /title="알까기: 시공의 판 — 다국어 비주얼 콘셉트 바이블"/i);
+  assert.match(html, /ALKKAGI: RIFT BOARD — 3D Arena/);
+  assert.match(html, /WebGL 3D 알까기 경기장/);
+  assert.match(html, /3 VS 3 속전/);
+  assert.doesNotMatch(html, /<iframe[^>]+src="\/ALKAGI_CONCEPT_BOOK\.html"/i);
   assert.doesNotMatch(html, /Building your site|react-loading-skeleton/i);
 });
 
@@ -117,7 +118,7 @@ test("includes the complete visual concept asset set", async () => {
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
 
-  assert.match(page, /src="\/ALKAGI_CONCEPT_BOOK\.html"/);
+  assert.match(page, /<AlkkagiArena \/>/);
   assert.match(layout, /ALKKAGI: RIFT BOARD/);
   assert.match(layout, /\/og\.png/);
   assert.match(packageJson, /"name": "alkkagi-rift-board-concept"/);

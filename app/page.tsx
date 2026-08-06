@@ -1,19 +1,13 @@
 import type { Metadata } from "next";
+import AlkkagiArena from "./arena/AlkkagiArena";
+import "./arena/arena.css";
 
 export const metadata: Metadata = {
-  title: "알까기: 시공의 판 — Visual Concept Bible",
+  title: "ALKKAGI: RIFT BOARD — 3D Arena",
   description:
-    "A seven-language visual concept bible for the 3D PC web game ALKKAGI: Rift Board.",
+    "Play the black-versus-white 3D character Alkkagi arena game in your browser.",
 };
 
 export default function Home() {
-  return (
-    <main className="concept-frame-shell">
-      <iframe
-        className="concept-frame"
-        src="/ALKAGI_CONCEPT_BOOK.html"
-        title="알까기: 시공의 판 — 다국어 비주얼 콘셉트 바이블"
-      />
-    </main>
-  );
+  return <AlkkagiArena />;
 }
