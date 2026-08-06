@@ -224,7 +224,7 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(engine, /private createFaceTexture/);
   assert.match(engine, /characterFace/);
   assert.match(engine, /contactShadow/);
-  assert.match(engine, /RoomEnvironment/);
+  assert.match(engine, /private createStudioEnvironment/);
   assert.match(engine, /private beginCameraOrbit/);
   assert.match(engine, /private onWheel/);
   assert.match(engine, /private spawnElementSignature/);

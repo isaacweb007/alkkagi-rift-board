@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { applyEdgeGrip, calculateLaunchVelocity, integrateBody, isRingOut, MATCH_RULES, resolveShotOutcome, solveCircleCollision } from "./core";
 import { GOLDEN_ART, GOLDEN_ARENAS, type GoldenArenaKind } from "./art-direction";
 import { createReplay, type MatchReplay, type ReplayShot } from "./replay";
@@ -200,9 +199,7 @@ export class Alkkagi3DEngine {
     this.container.appendChild(this.renderer.domElement);
     this.stoneSurfaceTexture = this.createStoneSurfaceTexture();
 
-    const environmentGenerator = new THREE.PMREMGenerator(this.renderer);
-    this.scene.environment = environmentGenerator.fromScene(new RoomEnvironment(), 0.035).texture;
-    environmentGenerator.dispose();
+    this.scene.environment = this.createStudioEnvironment();
 
     this.camera.position.set(0, 6.5, 12);
     this.camera.lookAt(0, 0.25, 1.2);
@@ -492,6 +489,29 @@ export class Alkkagi3DEngine {
       new THREE.MeshStandardMaterial({ color: 0xffffff, map: texture, roughness: 0.62, metalness: 0.34 }),
       new THREE.MeshStandardMaterial({ color: 0x05070b, roughness: 0.5, metalness: 0.7 }),
     ];
+  }
+
+  private createStudioEnvironment(): THREE.CubeTexture {
+    const faces = Array.from({ length: 6 }, (_, face) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 96;
+      const context = canvas.getContext("2d")!;
+      const gradient = context.createRadialGradient(face % 2 === 0 ? 26 : 70, face < 2 ? 24 : 58, 2, 48, 48, 78);
+      gradient.addColorStop(0, face < 2 ? "#d9efff" : face < 4 ? "#ffd49a" : "#b9c9ff");
+      gradient.addColorStop(0.2, "#5a6d86");
+      gradient.addColorStop(0.62, "#172131");
+      gradient.addColorStop(1, "#06090f");
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, 96, 96);
+      return canvas;
+    });
+    const environment = new THREE.CubeTexture(faces);
+    environment.colorSpace = THREE.SRGBColorSpace;
+    environment.generateMipmaps = true;
+    environment.minFilter = THREE.LinearMipmapLinearFilter;
+    environment.needsUpdate = true;
+    environment.userData.gameAsset = true;
+    return environment;
   }
 
   private createOriginalBoardTexture(): THREE.Texture {
