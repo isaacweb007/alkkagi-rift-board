@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import AlkkagiArena from "./arena/AlkkagiArena";
+import ArenaClient from "./arena/ArenaClient";
 import "./arena/arena.css";
 
 export const metadata: Metadata = {
@@ -9,5 +9,5 @@ export const metadata: Metadata = {
 };
 
 export default function Home() {
-  return <AlkkagiArena />;
+  return <ArenaClient />;
 }

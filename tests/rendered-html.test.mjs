@@ -29,15 +29,15 @@ async function render() {
   );
 }
 
-test("server-renders the playable 3D arena at the root URL", async () => {
+test("server-renders the browser-safe 3D arena loader at the root URL", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
   assert.match(html, /ALKKAGI: RIFT BOARD — 3D Arena/);
-  assert.match(html, /WebGL 3D 알까기 경기장/);
-  assert.match(html, /3 VS 3 속전/);
+  assert.match(html, /3D 알까기 경기장 로딩 중/);
+  assert.match(html, /BROWSER 3D ENGINE/);
   assert.doesNotMatch(html, /<iframe[^>]+src="\/ALKAGI_CONCEPT_BOOK\.html"/i);
   assert.doesNotMatch(html, /Building your site|react-loading-skeleton/i);
 });
@@ -112,13 +112,16 @@ test("includes the complete visual concept asset set", async () => {
   );
   await access(new URL("../public/og.png", import.meta.url));
 
-  const [page, layout, packageJson] = await Promise.all([
+  const [page, arenaClient, layout, packageJson] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/arena/ArenaClient.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
 
-  assert.match(page, /<AlkkagiArena \/>/);
+  assert.match(page, /<ArenaClient \/>/);
+  assert.match(arenaClient, /import\("\.\/AlkkagiArena"\)/);
+  assert.match(arenaClient, /ssr:\s*false/);
   assert.match(layout, /ALKKAGI: RIFT BOARD/);
   assert.match(layout, /\/og\.png/);
   assert.match(packageJson, /"name": "alkkagi-rift-board-concept"/);
@@ -170,8 +173,9 @@ test("defines persistent profiles, level matching, and sandbox progression", asy
 });
 
 test("ships the real WebGL 3D arena engine", async () => {
-  const [page, component, engine, core, styles, packageJson] = await Promise.all([
+  const [page, arenaClient, component, engine, core, styles, packageJson] = await Promise.all([
     readFile(new URL("../app/arena/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/arena/ArenaClient.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/arena/AlkkagiArena.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/arena/engine.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/arena/core.ts", import.meta.url), "utf8"),
@@ -179,7 +183,8 @@ test("ships the real WebGL 3D arena engine", async () => {
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
 
-  assert.match(page, /AlkkagiArena/);
+  assert.match(page, /ArenaClient/);
+  assert.match(arenaClient, /ssr:\s*false/);
   assert.match(component, /3 VS 3 속전/);
   assert.match(component, /5 VS 5 정규전/);
   assert.match(component, /지옥 AI 위험도/);
