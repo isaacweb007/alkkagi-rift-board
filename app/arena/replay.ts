@@ -1,5 +1,6 @@
 export type ReplayOwner = "player" | "enemy";
 export type ReplayArena = "medieval" | "modern" | "future";
+export type ReplayCharacterStyle = "rookie" | "knight" | "wizard" | "clockwork" | "courier" | "cat" | "safety" | "crystal" | "comet" | "aurora";
 
 export type ReplayPlacement = {
   stoneId: string;
@@ -24,19 +25,22 @@ export type MatchReplay = {
   arena: ReplayArena;
   aiLevel: number;
   first: ReplayOwner;
+  playerLoadout?: ReplayCharacterStyle[];
+  enemyLoadout?: ReplayCharacterStyle[];
   placements: ReplayPlacement[];
   shots: ReplayShot[];
   winner: ReplayOwner | null;
   createdAt: number;
 };
 
-type ReplaySeed = Pick<MatchReplay, "id" | "count" | "arena" | "aiLevel" | "first">;
+type ReplaySeed = Pick<MatchReplay, "id" | "count" | "arena" | "aiLevel" | "first"> & Pick<MatchReplay, "playerLoadout" | "enemyLoadout">;
 
 const OWNERS: ReplayOwner[] = ["player", "enemy"];
 const ARENAS: ReplayArena[] = ["medieval", "modern", "future"];
 const SAFE_ID = /^[a-zA-Z0-9_-]{16,80}$/;
 const STONE_ID = /^(player|enemy)-([0-4])$/;
 const REPLAY_PLACEMENT_LIMIT = 4.9;
+const CHARACTER_STYLES: ReplayCharacterStyle[] = ["rookie", "knight", "wizard", "clockwork", "courier", "cat", "safety", "crystal", "comet", "aurora"];
 
 export function createReplay(seed: ReplaySeed): MatchReplay {
   return {
@@ -70,6 +74,17 @@ export function validateAndNormalizeReplay(input: unknown): MatchReplay | null {
   if (!finiteNumber(replay.createdAt) || replay.createdAt <= 0) return null;
   if (!Array.isArray(replay.placements) || replay.placements.length !== replay.count * 2) return null;
   if (!Array.isArray(replay.shots) || replay.shots.length > 200) return null;
+  const normalizeLoadout = (loadout: unknown): ReplayCharacterStyle[] | undefined => {
+    if (loadout === undefined) return undefined;
+    if (!Array.isArray(loadout) || loadout.length !== replay.count) return undefined;
+    const normalized = loadout.filter((style): style is ReplayCharacterStyle => CHARACTER_STYLES.includes(style as ReplayCharacterStyle));
+    if (normalized.length !== replay.count || new Set(normalized).size !== normalized.length) return undefined;
+    return normalized;
+  };
+  const playerLoadout = normalizeLoadout(replay.playerLoadout);
+  const enemyLoadout = normalizeLoadout(replay.enemyLoadout);
+  if (replay.playerLoadout !== undefined && !playerLoadout) return null;
+  if (replay.enemyLoadout !== undefined && !enemyLoadout) return null;
 
   const expectedStoneIds = new Set<string>();
   for (const owner of OWNERS) {
@@ -117,6 +132,8 @@ export function validateAndNormalizeReplay(input: unknown): MatchReplay | null {
     arena: replay.arena as ReplayArena,
     aiLevel: Number(replay.aiLevel),
     first: replay.first as ReplayOwner,
+    playerLoadout,
+    enemyLoadout,
     placements,
     shots,
     winner: replay.winner as ReplayOwner | null,

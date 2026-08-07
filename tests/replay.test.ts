@@ -9,6 +9,8 @@ function validReplay(): MatchReplay {
     arena: "modern",
     aiLevel: 4,
     first: "player",
+    playerLoadout: ["rookie", "wizard", "cat"],
+    enemyLoadout: ["crystal", "comet", "aurora"],
   });
   replay.placements = [
     { stoneId: "player-0", x: -1, z: 2 },
@@ -29,6 +31,7 @@ test("a complete versioned replay is accepted and normalized", () => {
   assert.equal(replay.placements.length, 6);
   assert.equal(replay.shots[0].directionX, 0.6);
   assert.equal(replay.shots[0].directionZ, -0.8);
+  assert.deepEqual(replay.playerLoadout, ["rookie", "wizard", "cat"]);
 });
 
 test("replay rejects missing, duplicate, or out-of-bounds placements", () => {
@@ -71,4 +74,14 @@ test("replay limits unsafe shot values and event log size", () => {
     spin: 0,
   }));
   assert.equal(validateAndNormalizeReplay(oversized), null);
+});
+
+test("replay rejects duplicate or unknown character loadouts", () => {
+  const duplicate = validReplay();
+  duplicate.playerLoadout = ["rookie", "rookie", "cat"];
+  assert.equal(validateAndNormalizeReplay(duplicate), null);
+
+  const unknown = validReplay();
+  unknown.enemyLoadout = ["crystal", "comet", "unknown" as "aurora"];
+  assert.equal(validateAndNormalizeReplay(unknown), null);
 });

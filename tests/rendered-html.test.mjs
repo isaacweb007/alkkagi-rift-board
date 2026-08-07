@@ -193,10 +193,11 @@ test("defines persistent profiles, level matching, and sandbox progression", asy
 });
 
 test("ships the real WebGL 3D arena engine", async () => {
-  const [page, arenaClient, component, engine, core, styles, packageJson, artDirection] = await Promise.all([
+  const [page, arenaClient, component, characterPanels, engine, core, styles, packageJson, artDirection] = await Promise.all([
     readFile(new URL("../app/arena/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/arena/ArenaClient.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/arena/AlkkagiArena.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/arena/CharacterPanels.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/arena/engine.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/arena/core.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/arena/arena.css", import.meta.url), "utf8"),
@@ -208,6 +209,8 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(arenaClient, /ssr:\s*false/);
   assert.match(component, /3 VS 3 속전/);
   assert.match(component, /5 VS 5 정규전/);
+  assert.match(component, /prepareMatch/);
+  assert.match(component, /deploySquad/);
   assert.match(component, /지옥 AI 위험도/);
   assert.match(engine, /new THREE\.WebGLRenderer/);
   assert.match(engine, /const FIXED_STEP = MATCH_RULES\.fixedStep/);
@@ -224,6 +227,9 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(engine, /private createFaceTexture/);
   assert.match(engine, /const profiles: Record<CharacterStyle/);
   assert.match(engine, /cameraFitScale/);
+  assert.match(engine, /inspectStone/);
+  assert.match(engine, /playerLoadout/);
+  assert.match(engine, /triggerSkill/);
   assert.match(engine, /characterFace/);
   assert.match(engine, /contactShadow/);
   assert.match(engine, /private createStudioEnvironment/);
@@ -247,6 +253,10 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(component, /aria-live="polite"/);
   assert.match(component, /data-testid="reset-camera"/);
   assert.match(component, /360° 회전/);
+  assert.match(characterPanels, /data-testid="squad-builder"/);
+  assert.match(characterPanels, /data-testid="deploy-squad"/);
+  assert.match(characterPanels, /data-testid="character-inspector"/);
+  assert.match(characterPanels, /SKILL ACTIVATED/);
   assert.match(styles, /audio-mixer/);
   assert.match(styles, /camera-reset/);
   assert.match(styles, /camera-parallax/);

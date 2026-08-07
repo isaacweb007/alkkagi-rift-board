@@ -7,38 +7,12 @@ export type ArenaKind = GoldenArenaKind;
 export type MatchMode = "practice" | "ranked";
 export type TeamTone = "black" | "white";
 export type AudioSettings = { master: number; sfx: number; music: number; muted: boolean };
-type Owner = "player" | "enemy";
+export type Owner = "player" | "enemy";
 type Phase = "demo" | "placement" | "battle" | "result";
-type Stats = [number, number, number, number, number];
-type CharacterStyle = "rookie" | "knight" | "wizard" | "clockwork" | "courier" | "cat" | "safety" | "crystal" | "comet" | "aurora";
-type CharacterSkill = "balance" | "fortress" | "moonCurve" | "chainSpark" | "overdrive" | "beatBank" | "rescue" | "counter" | "finisher" | "prismAim";
-
-export type ArenaSnapshot = {
-  phase: Phase;
-  timer: number;
-  active: Owner;
-  first: Owner;
-  power: number;
-  selectedName: string;
-  selectedElement: string;
-  selectedStats: Stats;
-  selectedPortrait: readonly [number, number];
-  selectedSkill: string;
-  selectedSkillDescription: string;
-  selectedTone: TeamTone;
-  playerTone: TeamTone;
-  enemyTone: TeamTone;
-  playerAlive: number;
-  enemyAlive: number;
-  count: 3 | 5;
-  bonus: boolean;
-  winner: Owner | null;
-  message: string;
-  replay: boolean;
-};
-
-type MatchConfig = { count: 3 | 5; mode: MatchMode; arena: ArenaKind; aiLevel: number };
-type Character = {
+export type Stats = [number, number, number, number, number];
+export type CharacterStyle = "rookie" | "knight" | "wizard" | "clockwork" | "courier" | "cat" | "safety" | "crystal" | "comet" | "aurora";
+export type CharacterSkill = "balance" | "fortress" | "moonCurve" | "chainSpark" | "overdrive" | "beatBank" | "rescue" | "counter" | "finisher" | "prismAim";
+export type Character = {
   name: string;
   element: string;
   elementKo: string;
@@ -52,6 +26,51 @@ type Character = {
   portrait: readonly [number, number];
   demon?: boolean;
 };
+export type ArenaStoneSummary = {
+  id: string;
+  owner: Owner;
+  name: string;
+  portrait: readonly [number, number];
+  alive: boolean;
+  skillName: string;
+  element: string;
+  style: CharacterStyle;
+};
+export type SkillEvent = { id: number; owner: Owner; character: string; name: string; detail: string; element: string };
+
+export type ArenaSnapshot = {
+  phase: Phase;
+  timer: number;
+  active: Owner;
+  first: Owner;
+  power: number;
+  spin: number;
+  selectedId: string;
+  selectedOwner: Owner;
+  selectedAlive: boolean;
+  selectedName: string;
+  selectedElement: string;
+  selectedStats: Stats;
+  selectedPortrait: readonly [number, number];
+  selectedSkill: string;
+  selectedSkillDescription: string;
+  selectedSkillState: string;
+  selectedTone: TeamTone;
+  playerTone: TeamTone;
+  enemyTone: TeamTone;
+  playerAlive: number;
+  enemyAlive: number;
+  playerRoster: ArenaStoneSummary[];
+  enemyRoster: ArenaStoneSummary[];
+  skillEvent: SkillEvent | null;
+  count: 3 | 5;
+  bonus: boolean;
+  winner: Owner | null;
+  message: string;
+  replay: boolean;
+};
+
+export type MatchConfig = { count: 3 | 5; mode: MatchMode; arena: ArenaKind; aiLevel: number; loadout?: CharacterStyle[] };
 type Stone = {
   id: string;
   owner: Owner;
@@ -70,6 +89,7 @@ type Stone = {
   skillCharge: number;
   impactPulse: number;
   blinkOffset: number;
+  lastSkillTrigger: number;
 };
 type Particle = { mesh: THREE.Mesh; velocity: THREE.Vector3; life: number; maxLife: number };
 type Arc = { line: THREE.Line; life: number; maxLife: number };
@@ -90,6 +110,8 @@ const DEMON_ROSTER: Character[] = [
   { name: "코멧 키드", element: "fire", elementKo: "미래 · 피니셔", color: 0x241518, accent: 0xff5a2f, stats: [5, 3, 2, 1, 4], style: "comet", skill: "finisher", skillName: "라스트 코멧", skillDescription: "85 이상의 강공에서 추진력이 12% 추가 상승합니다.", portrait: [3, 1], demon: true },
   { name: "오로라-8", element: "void", elementKo: "미래 · 정밀형", color: 0x151827, accent: 0x8af7ff, stats: [1, 3, 4, 5, 2], style: "aurora", skill: "prismAim", skillName: "프리즘 조준", skillDescription: "조준 가이드가 길어지고 AI 오차가 크게 줄어듭니다.", portrait: [4, 1], demon: true },
 ];
+
+export const CHARACTER_CATALOG: readonly Character[] = Object.freeze([...PLAYER_ROSTER, ...DEMON_ROSTER]);
 
 const ARENA_COLORS: Record<ArenaKind, { board: number; edge: number; hazard: number; fog: number }> = {
   medieval: { board: 0x2b1c18, edge: 0xff7a32, hazard: 0xff3517, fog: 0x160604 },
@@ -133,6 +155,8 @@ export class Alkkagi3DEngine {
   private hazardLight = new THREE.PointLight(0x2e89ff, 16, 18, 2);
   private keyLight = new THREE.SpotLight(0xd8ebff, 120, 35, Math.PI / 4, 0.6, 1.1);
   private stones: Stone[] = [];
+  private playerLoadout: Character[] = [...PLAYER_ROSTER];
+  private enemyLoadout: Character[] = [...DEMON_ROSTER];
   private particles: Particle[] = [];
   private arcs: Arc[] = [];
   private shockwaves: Shockwave[] = [];
@@ -159,6 +183,8 @@ export class Alkkagi3DEngine {
   private timer = 20;
   private message = "3D ENGINE READY";
   private bonus = false;
+  private skillEvent: SkillEvent | null = null;
+  private skillEventSequence = 0;
   private cameraShake = 0;
   private cameraTarget = new THREE.Vector3(0, 0.2, 0);
   private cameraYaw = 0;
@@ -323,6 +349,11 @@ export class Alkkagi3DEngine {
     this.container.style.setProperty("--camera-parallax", "0%");
   }
 
+  inspectStone(stoneId: string) {
+    const stone = this.stones.find((candidate) => candidate.id === stoneId);
+    if (stone) this.selectStone(stone);
+  }
+
   setArena(kind: ArenaKind) {
     this.arena = kind;
     const colors = ARENA_COLORS[kind];
@@ -350,6 +381,9 @@ export class Alkkagi3DEngine {
     this.playerTone = "white";
     this.enemyTone = "black";
     this.message = "3D ENGINE READY";
+    this.playerLoadout = [...PLAYER_ROSTER];
+    this.enemyLoadout = [...DEMON_ROSTER];
+    this.skillEvent = null;
     this.winner = null;
     this.bonus = false;
     this.clearStones();
@@ -368,6 +402,13 @@ export class Alkkagi3DEngine {
     this.replayShotNumber = 0;
     this.replayTotalShots = 0;
     this.replayExpectedWinner = null;
+    const requested = (config.loadout || [])
+      .map((style) => CHARACTER_CATALOG.find((character) => character.style === style))
+      .filter((character): character is Character => Boolean(character));
+    const uniqueRequested = requested.filter((character, index) => requested.findIndex((candidate) => candidate.style === character.style) === index);
+    const fallback = CHARACTER_CATALOG.filter((character) => !uniqueRequested.some((selected) => selected.style === character.style));
+    this.playerLoadout = [...uniqueRequested, ...fallback].slice(0, config.count);
+    this.enemyLoadout = [...DEMON_ROSTER].slice(0, config.count);
     this.phase = "placement";
     this.playerTone = Math.random() < 0.5 ? "white" : "black";
     this.enemyTone = this.playerTone === "white" ? "black" : "white";
@@ -378,6 +419,8 @@ export class Alkkagi3DEngine {
       arena: config.arena,
       aiLevel: config.aiLevel,
       first: this.first,
+      playerLoadout: this.playerLoadout.map((character) => character.style),
+      enemyLoadout: this.enemyLoadout.map((character) => character.style),
     });
     this.active = this.first;
     this.winner = null;
@@ -385,6 +428,7 @@ export class Alkkagi3DEngine {
     this.aimSpin = 0;
     this.shotMoving = false;
     this.bonus = false;
+    this.skillEvent = null;
     this.message = "20초 안에 자신의 돌을 배치하세요";
     this.phaseDeadline = performance.now() + MATCH_RULES.placementSeconds * 1000;
     this.timer = MATCH_RULES.placementSeconds;
@@ -427,6 +471,10 @@ export class Alkkagi3DEngine {
     this.replayShotNumber = 0;
     this.replayTotalShots = replay.shots.length;
     this.replayExpectedWinner = replay.winner;
+    const replayPlayerLoadout = replay.playerLoadout?.map((style) => CHARACTER_CATALOG.find((character) => character.style === style)).filter((character): character is Character => Boolean(character));
+    const replayEnemyLoadout = replay.enemyLoadout?.map((style) => CHARACTER_CATALOG.find((character) => character.style === style)).filter((character): character is Character => Boolean(character));
+    this.playerLoadout = replayPlayerLoadout?.length === replay.count ? replayPlayerLoadout : [...PLAYER_ROSTER].slice(0, replay.count);
+    this.enemyLoadout = replayEnemyLoadout?.length === replay.count ? replayEnemyLoadout : [...DEMON_ROSTER].slice(0, replay.count);
     this.phase = "battle";
     this.playerTone = replay.id.charCodeAt(replay.id.length - 1) % 2 === 0 ? "white" : "black";
     this.enemyTone = this.playerTone === "white" ? "black" : "white";
@@ -437,6 +485,7 @@ export class Alkkagi3DEngine {
     this.aimSpin = 0;
     this.shotMoving = false;
     this.bonus = false;
+    this.skillEvent = null;
     this.timer = 0;
     this.message = "REPLAY · 기록된 경기를 재생합니다";
     this.clearStones();
@@ -600,10 +649,10 @@ export class Alkkagi3DEngine {
     const enemyZ = demo ? -2.0 : -2.35;
     for (let index = 0; index < count; index += 1) {
       const offset = (index - (count - 1) / 2) * (count === 3 ? 1.55 : 1.14);
-      const player = this.createStone(PLAYER_ROSTER[index % PLAYER_ROSTER.length], "player", index, this.playerTone);
+      const player = this.createStone(this.playerLoadout[index % this.playerLoadout.length], "player", index, this.playerTone);
       player.group.position.set(offset, 0.55, playerZ + Math.abs(offset) * 0.12);
       this.stones.push(player);
-      const enemy = this.createStone(DEMON_ROSTER[index % DEMON_ROSTER.length], "enemy", index, this.enemyTone);
+      const enemy = this.createStone(this.enemyLoadout[index % this.enemyLoadout.length], "enemy", index, this.enemyTone);
       enemy.group.position.set(-offset, 0.55, enemyZ - Math.abs(offset) * 0.12);
       this.stones.push(enemy);
     }
@@ -688,6 +737,7 @@ export class Alkkagi3DEngine {
       skillCharge: character.skill === "rescue" ? 1 : 0,
       impactPulse: 0,
       blinkOffset: index * 1.73 + (owner === "enemy" ? 0.85 : 0),
+      lastSkillTrigger: 0,
     };
   }
 
@@ -1041,26 +1091,79 @@ export class Alkkagi3DEngine {
     this.emit();
   }
 
+  private stoneSummary(stone: Stone): ArenaStoneSummary {
+    return {
+      id: stone.id,
+      owner: stone.owner,
+      name: stone.character.name,
+      portrait: stone.character.portrait,
+      alive: stone.alive,
+      skillName: stone.character.skillName,
+      element: stone.character.elementKo,
+      style: stone.character.style,
+    };
+  }
+
+  private triggerSkill(stone: Stone, detail: string) {
+    const now = performance.now();
+    if (now - stone.lastSkillTrigger < 420) return;
+    stone.lastSkillTrigger = now;
+    this.skillEventSequence += 1;
+    this.skillEvent = {
+      id: this.skillEventSequence,
+      owner: stone.owner,
+      character: stone.character.name,
+      name: stone.character.skillName,
+      detail,
+      element: stone.character.element,
+    };
+    this.message = `${stone.character.skillName} · ${detail}`;
+  }
+
+  private launchSkillDetail(stone: Stone, power: number): string {
+    const details: Record<CharacterSkill, string> = {
+      balance: "전 능력 안정화 · 엣지 그립 +8%",
+      fortress: "중량 +12% · 가장자리 저항 +28%",
+      moonCurve: "회전 궤적 +40%",
+      chainSpark: "강충돌 시 연쇄 반발 대기",
+      overdrive: "발사 초속 +10%",
+      beatBank: "가이드 +16% · 회전 +25%",
+      rescue: stone.skillCharge > 0 ? "긴급 구조 1회 충전" : "긴급 구조 충전 소진",
+      counter: "충돌 중량 +8% · 반동 저항",
+      finisher: power >= 85 ? "강공 추진력 +12%" : "85 파워 이상에서 각성",
+      prismAim: "조준 가이드 +32% · 오차 보정",
+    };
+    return details[stone.character.skill];
+  }
+
   private emit() {
     const selectedStone = this.selected;
-    const selected = selectedStone?.character || PLAYER_ROSTER[0];
+    const selected = selectedStone?.character || this.playerLoadout[0] || PLAYER_ROSTER[0];
     this.emitSnapshot({
       phase: this.phase,
       timer: this.timer,
       active: this.active,
       first: this.first,
       power: Math.round(this.power),
+      spin: Math.round(this.aimSpin * 100),
+      selectedId: selectedStone?.id || "",
+      selectedOwner: selectedStone?.owner || "player",
+      selectedAlive: selectedStone?.alive ?? true,
       selectedName: selected.name,
       selectedElement: selected.elementKo,
       selectedStats: selected.stats,
       selectedPortrait: selected.portrait,
       selectedSkill: selected.skillName,
       selectedSkillDescription: selected.skillDescription,
+      selectedSkillState: selectedStone && !selectedStone.alive ? "RING-OUT" : selected.skill === "rescue" && selectedStone ? (selectedStone.skillCharge > 0 ? "1 CHARGE READY" : "CHARGE USED") : "PASSIVE ACTIVE",
       selectedTone: selectedStone?.tone || this.playerTone,
       playerTone: this.playerTone,
       enemyTone: this.enemyTone,
       playerAlive: this.stones.filter((stone) => stone.owner === "player" && stone.alive).length,
       enemyAlive: this.stones.filter((stone) => stone.owner === "enemy" && stone.alive).length,
+      playerRoster: this.stones.filter((stone) => stone.owner === "player").map((stone) => this.stoneSummary(stone)),
+      enemyRoster: this.stones.filter((stone) => stone.owner === "enemy").map((stone) => this.stoneSummary(stone)),
+      skillEvent: this.skillEvent,
       count: this.count,
       bonus: this.bonus,
       winner: this.winner,
@@ -1098,13 +1201,18 @@ export class Alkkagi3DEngine {
   private onPointerDown = (event: PointerEvent) => {
     this.ensureAudio();
     this.updatePointer(event);
-    if (event.button === 1 || event.button === 2 || this.replayMode || this.phase === "demo" || this.phase === "result") {
+    if (event.button === 1 || event.button === 2 || this.phase === "demo" || this.phase === "result") {
       event.preventDefault();
       this.beginCameraOrbit(event);
       return;
     }
     if (this.phase === "placement") {
-      const stone = this.pickStone("player");
+      const inspected = this.pickStone();
+      if (inspected?.owner === "enemy") {
+        this.selectStone(inspected);
+        return;
+      }
+      const stone = inspected?.owner === "player" ? inspected : null;
       if (!stone) {
         this.beginCameraOrbit(event);
         return;
@@ -1114,11 +1222,17 @@ export class Alkkagi3DEngine {
       this.renderer.domElement.setPointerCapture(event.pointerId);
       return;
     }
-    if (this.phase !== "battle" || this.active !== "player" || this.shotMoving) {
+    const inspected = this.pickStone();
+    if (this.replayMode || this.active !== "player" || this.shotMoving || inspected?.owner === "enemy") {
+      if (inspected) this.selectStone(inspected);
+      else this.beginCameraOrbit(event);
+      return;
+    }
+    if (this.phase !== "battle") {
       this.beginCameraOrbit(event);
       return;
     }
-    const stone = this.pickStone("player");
+    const stone = inspected?.owner === "player" ? inspected : null;
     if (!stone) {
       this.beginCameraOrbit(event);
       return;
@@ -1132,6 +1246,8 @@ export class Alkkagi3DEngine {
     this.aimArrow.visible = true;
     this.aimTargetRing.visible = true;
     this.renderer.domElement.setPointerCapture(event.pointerId);
+    if (stone.character.skill === "beatBank" || stone.character.skill === "prismAim") this.triggerSkill(stone, this.launchSkillDetail(stone, 0));
+    this.emit();
   };
 
   private onPointerMove = (event: PointerEvent) => {
@@ -1275,7 +1391,6 @@ export class Alkkagi3DEngine {
         spin,
       });
     }
-    const durability = stone.character.stats[2];
     const launch = calculateLaunchVelocity(power, stone.character.stats[0], direction.x, direction.y);
     const launchMultiplier = stone.character.skill === "overdrive" ? 1.1 : stone.character.skill === "finisher" && power >= 85 ? 1.12 : 1;
     const spinMultiplier = stone.character.skill === "moonCurve" ? 1.4 : stone.character.skill === "beatBank" ? 1.25 : 1;
@@ -1287,8 +1402,7 @@ export class Alkkagi3DEngine {
     this.stableTime = 0;
     this.power = 0;
     this.bonus = false;
-    const skillTriggered = launchMultiplier > 1 || spinMultiplier > 1;
-    this.message = skillTriggered ? `${stone.character.skillName}!` : power >= 90 ? "MAX POWER!" : durability >= 4 ? "HEAVY STRIKE" : "SHOT RELEASED";
+    this.triggerSkill(stone, this.launchSkillDetail(stone, power));
     this.playLaunch(stone.character.element, power);
     this.emit();
   }
@@ -1355,6 +1469,17 @@ export class Alkkagi3DEngine {
       second.impactPulse = Math.min(1, second.impactPulse + collision.impulse * 0.12);
       this.cameraShake = Math.max(this.cameraShake, Math.min(0.12, collision.impulse * 0.018));
       this.spawnImpact(position, element, collision.impulse);
+      const skillStone = [first, second].find((stone) => stone.character.skill === "chainSpark")
+        || [first, second].find((stone) => stone.character.skill === "counter")
+        || [first, second].find((stone) => stone.character.skill === "fortress");
+      if (skillStone?.character.skill === "chainSpark") {
+        first.velocity.multiplyScalar(1.018);
+        second.velocity.multiplyScalar(1.018);
+        this.triggerSkill(skillStone, "충돌 반발 +3.5% · 번개 연쇄");
+        this.spawnArc(position, skillStone.character.accent);
+      } else if (skillStone?.character.skill === "counter") this.triggerSkill(skillStone, "중량 저항으로 충격 반동 상쇄");
+      else if (skillStone?.character.skill === "fortress") this.triggerSkill(skillStone, "철벽 중량으로 충돌 축 유지");
+      if (skillStone) this.emit();
     }
   }
 
@@ -1383,7 +1508,7 @@ export class Alkkagi3DEngine {
     stone.group.position.z = normalZ * (SAFE_RADIUS - 0.16);
     stone.velocity.set(-normalX * 0.82, -normalZ * 0.82);
     stone.spin *= 0.4;
-    this.message = `${stone.character.skillName}! · 추락 방지`;
+    this.triggerSkill(stone, "충전 1회 사용 · 추락 방지");
     this.spawnImpact(stone.group.position.clone(), "earth", 3.8);
     this.playTone(380, 0.18, 0.055, 920, "triangle");
     this.emit();

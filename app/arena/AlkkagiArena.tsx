@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { Alkkagi3DEngine, type ArenaKind, type ArenaSnapshot, type AudioSettings, type MatchMode, type TeamTone } from "./engine";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { Alkkagi3DEngine, CHARACTER_CATALOG, type ArenaKind, type ArenaSnapshot, type AudioSettings, type CharacterStyle, type MatchMode, type TeamTone } from "./engine";
 import { GOLDEN_ARENAS, GOLDEN_CHARACTER_NAMES } from "./art-direction";
 import { validateAndNormalizeReplay, type MatchReplay } from "./replay";
+import { CharacterInspector, CombatTelemetry, SkillActivation, SquadBuilder, TeamRail } from "./CharacterPanels";
 
 const initialSnapshot: ArenaSnapshot = {
   phase: "demo",
@@ -11,17 +12,25 @@ const initialSnapshot: ArenaSnapshot = {
   active: "player",
   first: "player",
   power: 0,
+  spin: 0,
+  selectedId: "",
+  selectedOwner: "player",
+  selectedAlive: true,
   selectedName: "몽돌",
   selectedElement: "대지",
   selectedStats: [3, 3, 3, 3, 3],
   selectedPortrait: [0, 0],
   selectedSkill: "균형 본능",
   selectedSkillDescription: "힘·회전·가장자리 그립이 안정적으로 작동합니다.",
+  selectedSkillState: "PASSIVE ACTIVE",
   selectedTone: "white",
   playerTone: "white",
   enemyTone: "black",
   playerAlive: 3,
   enemyAlive: 3,
+  playerRoster: [],
+  enemyRoster: [],
+  skillEvent: null,
   count: 3,
   bonus: false,
   winner: null,
@@ -40,28 +49,13 @@ function Pips({ alive, count, tone }: { alive: number; count: number; tone: Team
   return <span className={`arena-pips tone-${tone}`}>{Array.from({ length: count }, (_, index) => <i className={index < alive ? "" : "out"} key={index} />)}</span>;
 }
 
-function TeamRail({ side, alive, count, tone }: { side: "player" | "enemy"; alive: number; count: number; tone: TeamTone }) {
-  const portraitRow = side === "player" ? 0 : 1;
-  return <aside className={`team-rail ${side} tone-${tone}`} aria-label={`${side === "player" ? "나의" : "상대"} 생존 돌 ${alive}개`}>
-    <small>{side === "player" ? "YOUR SQUAD" : "RIVAL SQUAD"}</small>
-    <div className="rail-stones">
-      {Array.from({ length: count }, (_, index) => <i
-        className={`${index < alive ? "alive" : "out"} ${index === Math.max(0, alive - 1) ? "focus" : ""}`}
-        key={index}
-        style={{ backgroundPosition: `${(index % 5) * 25}% ${portraitRow * 100}%` }}
-      />)}
-    </div>
-    <b>{alive}<span>/{count}</span></b>
-  </aside>;
-}
-
 export default function AlkkagiArena() {
   const mountRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<Alkkagi3DEngine | null>(null);
   const resultSentRef = useRef<string | null>(null);
   const matchReceiptRef = useRef<string>("");
   const profileRef = useRef({ id: "", level: 1, xp: 0, points: 500 });
-  const [screen, setScreen] = useState<"lobby" | "match">("lobby");
+  const [screen, setScreen] = useState<"lobby" | "loadout" | "match">("lobby");
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [arena, setArena] = useState<ArenaKind>("modern");
   const [aiLevel, setAiLevel] = useState(3);
@@ -69,6 +63,8 @@ export default function AlkkagiArena() {
   const [audioSettings, setAudioSettings] = useState<AudioSettings>(DEFAULT_AUDIO_SETTINGS);
   const [profile, setProfile] = useState({ id: "", level: 1, xp: 0, points: 500 });
   const [lastReplay, setLastReplay] = useState<MatchReplay | null>(null);
+  const [pendingMatch, setPendingMatch] = useState<{ count: 3 | 5; mode: MatchMode }>({ count: 3, mode: "practice" });
+  const [selectedLoadout, setSelectedLoadout] = useState<CharacterStyle[]>(["rookie", "knight", "wizard"]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -162,12 +158,25 @@ export default function AlkkagiArena() {
     }).catch(() => {});
   }, [snapshot.phase, snapshot.winner, snapshot.count, snapshot.message, snapshot.replay, aiLevel, profile.id]);
 
-  const start = (count: 3 | 5, mode: MatchMode) => {
+  const prepareMatch = (count: 3 | 5, mode: MatchMode) => {
+    const available = CHARACTER_CATALOG.map((character) => character.style);
+    setSelectedLoadout((current) => [...current.filter((style) => available.includes(style)), ...available.filter((style) => !current.includes(style))].slice(0, count));
+    setPendingMatch({ count, mode });
+    setAudioOpen(false);
+    setScreen("loadout");
+  };
+
+  const toggleLoadout = (style: CharacterStyle) => {
+    setSelectedLoadout((current) => current.includes(style) ? current.filter((candidate) => candidate !== style) : current.length < pendingMatch.count ? [...current, style] : current);
+  };
+
+  const deploySquad = () => {
+    if (selectedLoadout.length !== pendingMatch.count) return;
     resultSentRef.current = null;
     matchReceiptRef.current = crypto.randomUUID();
     setAudioOpen(false);
     setScreen("match");
-    engineRef.current?.startMatch({ count, mode, arena, aiLevel });
+    engineRef.current?.startMatch({ ...pendingMatch, arena, aiLevel, loadout: selectedLoadout });
   };
 
   const returnLobby = () => {
@@ -193,6 +202,10 @@ export default function AlkkagiArena() {
   const toggleMute = () => {
     setAudioSettings((current) => ({ ...current, muted: !current.muted }));
   };
+
+  const inspectStone = useCallback((stoneId: string) => {
+    engineRef.current?.inspectStone(stoneId);
+  }, []);
 
   const arenaStyle = {
     "--arena-background": `url(${GOLDEN_ARENAS[arena].background})`,
@@ -231,8 +244,8 @@ export default function AlkkagiArena() {
         </aside>
 
         <div className="engine-modes">
-          <button data-testid="start-3v3" onClick={() => start(3, "practice")}><span>01</span><small>HELL PRACTICE</small><b>3 VS 3 속전</b><em>약 3–5분 · 실제 3D 물리</em><strong>PLAY ↗</strong></button>
-          <button data-testid="start-5v5" className="featured" onClick={() => start(5, "practice")}><span>02</span><small>FULL BATTLE</small><b>5 VS 5 정규전</b><em>연쇄 충돌 · 보너스 샷</em><strong>PLAY ↗</strong></button>
+          <button data-testid="start-3v3" onClick={() => prepareMatch(3, "practice")}><span>01</span><small>HELL PRACTICE</small><b>3 VS 3 속전</b><em>캐릭터 3종 편성 · 실제 3D 물리</em><strong>SELECT SQUAD ↗</strong></button>
+          <button data-testid="start-5v5" className="featured" onClick={() => prepareMatch(5, "practice")}><span>02</span><small>FULL BATTLE</small><b>5 VS 5 정규전</b><em>캐릭터 5종 편성 · 보너스 샷</em><strong>SELECT SQUAD ↗</strong></button>
         </div>
 
         <button data-testid="play-last-replay" className="replay-launch" disabled={!lastReplay} onClick={playLastReplay}>
@@ -243,31 +256,37 @@ export default function AlkkagiArena() {
         <div className="engine-proof"><span><i>B/W</i> RANDOM<br/><small>CLEAR TEAMS</small></span><span><i>10</i> SKILLS<br/><small>LIVE PHYSICS</small></span><span><i>360°</i> ORBIT<br/><small>DRAG · ZOOM</small></span><span><i>3CH</i> MIXER<br/><small>MUSIC · SFX</small></span></div>
       </section>}
 
+      {screen === "loadout" && <SquadBuilder
+        count={pendingMatch.count}
+        characters={CHARACTER_CATALOG}
+        selected={selectedLoadout}
+        onToggle={toggleLoadout}
+        onConfirm={deploySquad}
+        onBack={returnLobby}
+      />}
+
       {screen === "match" && <section className="arena-match-ui">
         <div className="rift-score" aria-label={`전력 균형: 나 ${snapshot.playerAlive}, 상대 ${snapshot.enemyAlive}`}>
           <div className={`score-wing player tone-${snapshot.playerTone}`}><Pips alive={snapshot.playerAlive} count={snapshot.count} tone={snapshot.playerTone}/></div>
           <div className="rift-core"><i /><span>{snapshot.active === "player" ? "YOU" : "AI"}</span></div>
           <div className={`score-wing enemy tone-${snapshot.enemyTone}`}><Pips alive={snapshot.enemyAlive} count={snapshot.count} tone={snapshot.enemyTone}/></div>
         </div>
-        <TeamRail side="player" alive={snapshot.playerAlive} count={snapshot.count} tone={snapshot.playerTone} />
-        <TeamRail side="enemy" alive={snapshot.enemyAlive} count={snapshot.count} tone={snapshot.enemyTone} />
+        <TeamRail side="player" roster={snapshot.playerRoster} selectedId={snapshot.selectedId} tone={snapshot.playerTone} onInspect={inspectStone} />
+        <TeamRail side="enemy" roster={snapshot.enemyRoster} selectedId={snapshot.selectedId} tone={snapshot.enemyTone} onInspect={inspectStone} />
 
         <div className={`team-hud player tone-${snapshot.playerTone}`}><div className="team-symbol">{snapshot.playerTone === "white" ? "○" : "●"}</div><div><small>YOU · LV {profile.level}</small><b>{snapshot.playerTone === "white" ? "WHITE STONES" : "BLACK STONES"}</b><Pips alive={snapshot.playerAlive} count={snapshot.count} tone={snapshot.playerTone}/></div></div>
         <div className="phase-hud" aria-live="polite"><small>{snapshot.replay ? "MATCH REPLAY" : snapshot.phase.toUpperCase()}</small><b>{snapshot.replay ? "REC" : snapshot.timer}</b><span>{snapshot.message}</span></div>
         <div className={`team-hud enemy tone-${snapshot.enemyTone}`}><div><small>HELL AI · LV {aiLevel}</small><b>{snapshot.enemyTone === "white" ? "WHITE STONES" : "BLACK STONES"}</b><Pips alive={snapshot.enemyAlive} count={snapshot.count} tone={snapshot.enemyTone}/></div><div className="team-symbol">{snapshot.enemyTone === "white" ? "○" : "●"}</div></div>
 
-        <aside className="stone-readout">
-          <div className={`selected-concept-portrait tone-${snapshot.selectedTone}`} role="img" aria-label={`${snapshot.selectedName} 최초 3D 원화`} style={{ backgroundPosition: `${snapshot.selectedPortrait[0] * 25}% ${snapshot.selectedPortrait[1] * 100}%` }}><span>{snapshot.selectedTone.toUpperCase()} TEAM · ORIGINAL ART</span></div>
-          <small>SELECTED 3D CHARACTER</small><h2>{snapshot.selectedName}</h2><em>{snapshot.selectedElement}</em>
-          <div className="skill-card"><small>UNIQUE SKILL</small><b>{snapshot.selectedSkill}</b><p>{snapshot.selectedSkillDescription}</p></div>
-          {(["추진", "중량", "내구", "정밀", "회전"] as const).map((label, index) => <div className="stat-line" key={label}><span>{label}</span><i><b style={{ width: `${snapshot.selectedStats[index] * 20}%` }} /></i><strong>{snapshot.selectedStats[index]}</strong></div>)}
-        </aside>
+        <CharacterInspector snapshot={snapshot} />
 
         <div className={`turn-ribbon ${snapshot.active === "player" ? "your" : "enemy"}`}>{snapshot.replay ? "DETERMINISTIC REPLAY" : snapshot.active === "player" ? "YOUR TURN" : "ENEMY TURN"}</div>
         {snapshot.bonus && <div className="bonus-3d"><small>RING-OUT COMBO</small><b>BONUS SHOT!</b></div>}
+        <SkillActivation event={snapshot.skillEvent} />
 
         {!snapshot.replay && <div className="power-3d" style={{ "--shot-power": snapshot.power } as CSSProperties} aria-label={`발사 파워 ${snapshot.power} 퍼센트`}>
           <div className="power-dial">
+            <div className="power-label"><small>SHOT POWER</small><b>{snapshot.power >= 90 ? "MAXIMUM" : snapshot.power >= 70 ? "HEAVY" : "CONTROL"}</b></div>
             <div className="power-scale"><i /></div>
             <div className="power-needle" />
             <div className="power-hub" />
@@ -276,12 +295,13 @@ export default function AlkkagiArena() {
           <div className="power-reticle"><i /><b /></div>
           <footer><span>CONTROL</span><span>HEAVY</span><span>MAX</span></footer>
         </div>}
+        {!snapshot.replay && <CombatTelemetry snapshot={snapshot} />}
         {!snapshot.replay && snapshot.phase === "placement" && <button data-testid="confirm-placement" className="ready-3d" onClick={() => engineRef.current?.confirmPlacement()}>배치 확정 <b>READY</b></button>}
         <button data-testid="leave-arena" className="leave-3d" onClick={returnLobby}>← 로비</button>
         <button data-testid="reset-camera" className="camera-reset" onClick={() => engineRef.current?.resetCamera()} aria-label="3D 카메라 시점 초기화"><b>360°</b><span>VIEW RESET</span></button>
         {!snapshot.replay && <div className="input-help"><span>돌 드래그: 조준 · 발사</span><span>빈 공간/우클릭 드래그: 360° 회전</span><span>휠: 줌 · C: 카메라 리셋 · Q/E: 스핀</span></div>}
 
-        {snapshot.phase === "result" && <div className={`result-3d ${snapshot.winner === "player" ? "win" : "loss"}`}><div><small>{snapshot.replay ? "MATCH ARCHIVE COMPLETE" : snapshot.winner === "player" ? "ARENA SURVIVOR" : "FALLEN INTO THE RIFT"}</small><h2>{snapshot.replay ? "재생 완료" : snapshot.winner === "player" ? "승리!" : "패배"}</h2><p>{snapshot.replay ? "배치와 모든 샷 이벤트를 실제 3D 물리로 다시 재생했습니다." : snapshot.winner === "player" ? "마지막 돌이 3D 아레나 위에 남았습니다." : "심연의 군단이 판을 장악했습니다."}</p><button onClick={snapshot.replay ? playLastReplay : () => start(snapshot.count, "practice")}>{snapshot.replay ? "다시 보기" : "다시 대전"}</button><button onClick={returnLobby}>{snapshot.replay ? "리플레이 종료" : "로비로"}</button></div></div>}
+        {snapshot.phase === "result" && <div className={`result-3d ${snapshot.winner === "player" ? "win" : "loss"}`}><div><small>{snapshot.replay ? "MATCH ARCHIVE COMPLETE" : snapshot.winner === "player" ? "ARENA SURVIVOR" : "FALLEN INTO THE RIFT"}</small><h2>{snapshot.replay ? "재생 완료" : snapshot.winner === "player" ? "승리!" : "패배"}</h2><p>{snapshot.replay ? "배치와 모든 샷 이벤트를 실제 3D 물리로 다시 재생했습니다." : snapshot.winner === "player" ? "마지막 돌이 3D 아레나 위에 남았습니다." : "심연의 군단이 판을 장악했습니다."}</p><button onClick={snapshot.replay ? playLastReplay : () => prepareMatch(snapshot.count, "practice")}>{snapshot.replay ? "다시 보기" : "스쿼드 재편성"}</button><button onClick={returnLobby}>{snapshot.replay ? "리플레이 종료" : "로비로"}</button></div></div>}
       </section>}
     </main>
   );
