@@ -200,7 +200,9 @@ export class Alkkagi3DEngine {
   private masterGain: GainNode | null = null;
   private sfxGain: GainNode | null = null;
   private musicGain: GainNode | null = null;
-  private audioSettings: AudioSettings = { master: 0.8, sfx: 0.9, music: 0.35, muted: false };
+  private compressor: DynamicsCompressorNode | null = null;
+  private noiseBuffer: AudioBuffer | null = null;
+  private audioSettings: AudioSettings = { master: 0.9, sfx: 1, music: 0.3, muted: false };
   private musicTimer = 0;
   private musicStep = 0;
   private disposed = false;
@@ -342,6 +344,35 @@ export class Alkkagi3DEngine {
     this.applyAudioGains();
   }
 
+  playUiCue(cue: "select" | "confirm" | "cancel" | "warning" | "deploy" = "select") {
+    this.ensureAudio();
+    if (cue === "select") {
+      this.playTone(620, 0.055, 0.06, 820, "triangle");
+      this.playTone(1240, 0.04, 0.025, 980, "sine", "sfx", 0.025);
+    } else if (cue === "confirm") {
+      this.playTone(420, 0.09, 0.075, 720, "triangle");
+      this.playTone(840, 0.13, 0.05, 1180, "sine", "sfx", 0.07);
+    } else if (cue === "deploy") {
+      this.playNoise(0.16, 0.075, "bandpass", 680);
+      this.playTone(145, 0.26, 0.095, 58, "sawtooth");
+      this.playTone(510, 0.15, 0.07, 940, "triangle", "sfx", 0.08);
+    } else if (cue === "warning") {
+      this.playTone(760, 0.085, 0.075, 520, "square");
+      this.playTone(520, 0.09, 0.055, 390, "square", "sfx", 0.1);
+    } else {
+      this.playTone(420, 0.08, 0.045, 230, "triangle");
+    }
+  }
+
+  previewAudio() {
+    this.ensureAudio();
+    this.playUiCue("confirm");
+    this.playNoise(0.18, 0.11, "bandpass", 920, "sfx", 0.18);
+    this.playTone(1380, 0.15, 0.085, 210, "sawtooth", "sfx", 0.18);
+    this.playTone(86, 0.34, 0.13, 38, "sine", "sfx", 0.2);
+    this.playTone(520, 0.16, 0.075, 980, "triangle", "sfx", 0.38);
+  }
+
   resetCamera() {
     this.cameraYaw = 0;
     this.cameraPitch = 0.52;
@@ -351,7 +382,10 @@ export class Alkkagi3DEngine {
 
   inspectStone(stoneId: string) {
     const stone = this.stones.find((candidate) => candidate.id === stoneId);
-    if (stone) this.selectStone(stone);
+    if (stone) {
+      this.playUiCue("select");
+      this.selectStone(stone);
+    }
   }
 
   setArena(kind: ArenaKind) {
@@ -393,6 +427,7 @@ export class Alkkagi3DEngine {
 
   startMatch(config: MatchConfig) {
     this.ensureAudio();
+    this.playUiCue("deploy");
     this.token += 1;
     this.count = config.count;
     this.aiLevel = config.aiLevel;
@@ -435,7 +470,7 @@ export class Alkkagi3DEngine {
     this.clearStones();
     this.createTeams(config.count, false);
     this.selectStone(this.stones.find((stone) => stone.owner === "player") || null);
-    this.playTone(520, 0.12, 0.035, 760);
+    this.playTone(520, 0.12, 0.065, 760);
     this.emit();
   }
 
@@ -454,7 +489,7 @@ export class Alkkagi3DEngine {
     this.message = this.first === "player" ? "선공입니다 · 돌을 당겨 발사하세요" : "상대가 선공입니다";
     this.phaseDeadline = performance.now() + MATCH_RULES.turnSeconds * 1000;
     this.timer = MATCH_RULES.turnSeconds;
-    this.playTone(420, 0.12, 0.04, 780);
+    this.playUiCue("confirm");
     this.emit();
     if (this.active === "enemy") this.scheduleAi();
   }
@@ -530,6 +565,8 @@ export class Alkkagi3DEngine {
     this.renderer.dispose();
     this.container.replaceChildren();
     this.audio?.close().catch(() => {});
+    this.noiseBuffer = null;
+    this.compressor = null;
   }
 
   private createBoardMaterials(): THREE.Material[] {
@@ -1117,6 +1154,7 @@ export class Alkkagi3DEngine {
       detail,
       element: stone.character.element,
     };
+    this.playSkillCue(stone);
     this.message = `${stone.character.skillName} · ${detail}`;
   }
 
@@ -1402,7 +1440,8 @@ export class Alkkagi3DEngine {
     this.stableTime = 0;
     this.power = 0;
     this.bonus = false;
-    this.triggerSkill(stone, this.launchSkillDetail(stone, power));
+    const reactiveSkill = stone.character.skill === "chainSpark" || stone.character.skill === "rescue" || stone.character.skill === "counter" || stone.character.skill === "fortress";
+    if (!reactiveSkill) this.triggerSkill(stone, this.launchSkillDetail(stone, power));
     this.playLaunch(stone.character.element, power);
     this.emit();
   }
@@ -1524,6 +1563,7 @@ export class Alkkagi3DEngine {
     if (outcome.finished) {
       this.winner = outcome.winner;
       this.phase = "result";
+      this.timer = 0;
       this.message = this.winner === "player" ? "RIFT BOARD SURVIVOR" : "THE ABYSS CLAIMS THE BOARD";
       this.bonus = false;
       this.replayQueue = [];
@@ -1545,6 +1585,7 @@ export class Alkkagi3DEngine {
       this.active = outcome.active;
       this.bonus = false;
       this.message = this.active === "player" ? "당신의 턴입니다" : "지옥 AI가 조준 중입니다";
+      this.playTurnCue(this.active);
     }
     this.phaseDeadline = performance.now() + MATCH_RULES.turnSeconds * 1000;
     this.timer = MATCH_RULES.turnSeconds;
@@ -1774,9 +1815,18 @@ export class Alkkagi3DEngine {
     this.masterGain = this.audio.createGain();
     this.sfxGain = this.audio.createGain();
     this.musicGain = this.audio.createGain();
+    this.compressor = this.audio.createDynamicsCompressor();
+    this.compressor.threshold.setValueAtTime(-18, this.audio.currentTime);
+    this.compressor.knee.setValueAtTime(16, this.audio.currentTime);
+    this.compressor.ratio.setValueAtTime(4.5, this.audio.currentTime);
+    this.compressor.attack.setValueAtTime(0.003, this.audio.currentTime);
+    this.compressor.release.setValueAtTime(0.24, this.audio.currentTime);
     this.sfxGain.connect(this.masterGain);
     this.musicGain.connect(this.masterGain);
-    this.masterGain.connect(this.audio.destination);
+    this.masterGain.connect(this.compressor).connect(this.audio.destination);
+    this.noiseBuffer = this.audio.createBuffer(1, this.audio.sampleRate, this.audio.sampleRate);
+    const noise = this.noiseBuffer.getChannelData(0);
+    for (let index = 0; index < noise.length; index += 1) noise[index] = Math.random() * 2 - 1;
     this.applyAudioGains();
     this.startMusic();
   }
@@ -1784,10 +1834,10 @@ export class Alkkagi3DEngine {
   private applyAudioGains() {
     if (!this.audio || !this.masterGain || !this.sfxGain || !this.musicGain) return;
     const now = this.audio.currentTime;
-    const master = this.audioSettings.muted ? 0 : this.audioSettings.master ** 2;
+    const master = this.audioSettings.muted ? 0 : this.audioSettings.master ** 1.2;
     this.masterGain.gain.setTargetAtTime(master, now, 0.025);
-    this.sfxGain.gain.setTargetAtTime(this.audioSettings.sfx ** 2, now, 0.025);
-    this.musicGain.gain.setTargetAtTime(this.audioSettings.music ** 2, now, 0.04);
+    this.sfxGain.gain.setTargetAtTime(this.audioSettings.sfx ** 1.1, now, 0.025);
+    this.musicGain.gain.setTargetAtTime(this.audioSettings.music * 0.72, now, 0.04);
   }
 
   private startMusic() {
@@ -1806,15 +1856,16 @@ export class Alkkagi3DEngine {
     const notes = roots[this.arena];
     const root = notes[this.musicStep % notes.length];
     this.musicStep += 1;
-    this.playTone(root, 1.85, 0.045, root * 1.015, "sine", "music");
-    this.playTone(root * 2, 0.72, 0.018, root * 1.5, "triangle", "music");
+    this.playTone(root, 1.85, 0.06, root * 1.015, "sine", "music");
+    this.playTone(root * 2, 0.72, 0.026, root * 1.5, "triangle", "music");
+    this.playTone(root * 0.5, 1.1, 0.025, root * 0.48, "sine", "music", 0.2);
   }
 
-  private playTone(start: number, duration: number, volume: number, end = start, type: OscillatorType = "sine", channel: "sfx" | "music" = "sfx") {
+  private playTone(start: number, duration: number, volume: number, end = start, type: OscillatorType = "sine", channel: "sfx" | "music" = "sfx", delay = 0) {
     if (this.audioSettings.muted || (channel === "sfx" ? this.audioSettings.sfx : this.audioSettings.music) <= 0.01) return;
     this.ensureAudio();
     if (!this.audio) return;
-    const now = this.audio.currentTime;
+    const now = this.audio.currentTime + delay;
     const oscillator = this.audio.createOscillator();
     const gain = this.audio.createGain();
     oscillator.type = type;
@@ -1830,37 +1881,107 @@ export class Alkkagi3DEngine {
     oscillator.stop(now + duration + 0.03);
   }
 
+  private playNoise(duration: number, volume: number, filterType: BiquadFilterType = "lowpass", frequency = 720, channel: "sfx" | "music" = "sfx", delay = 0) {
+    if (this.audioSettings.muted || (channel === "sfx" ? this.audioSettings.sfx : this.audioSettings.music) <= 0.01) return;
+    this.ensureAudio();
+    if (!this.audio || !this.noiseBuffer) return;
+    const now = this.audio.currentTime + delay;
+    const source = this.audio.createBufferSource();
+    const filter = this.audio.createBiquadFilter();
+    const gain = this.audio.createGain();
+    const bus = channel === "music" ? this.musicGain : this.sfxGain;
+    if (!bus) return;
+    source.buffer = this.noiseBuffer;
+    source.playbackRate.value = THREE.MathUtils.randFloat(0.82, 1.18);
+    filter.type = filterType;
+    filter.frequency.setValueAtTime(frequency, now);
+    filter.frequency.exponentialRampToValueAtTime(Math.max(45, frequency * 0.34), now + duration);
+    filter.Q.value = filterType === "bandpass" ? 1.8 : 0.7;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(volume, now + 0.006);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    source.connect(filter).connect(gain).connect(bus);
+    source.start(now, Math.random() * Math.max(0.01, 1 - duration), duration);
+    source.stop(now + duration + 0.02);
+  }
+
+  private playSkillCue(stone: Stone) {
+    const element = stone.character.element;
+    const base = ({ earth: 180, water: 540, lightning: 920, thunder: 260, fire: 430, void: 320 } as Record<string, number>)[element] || 420;
+    this.playTone(base, 0.16, 0.085, base * 1.7, element === "fire" ? "sawtooth" : "triangle");
+    this.playTone(base * 2.02, 0.22, 0.055, base * 2.72, "sine", "sfx", 0.075);
+    if (element === "lightning" || element === "thunder") this.playNoise(0.16, 0.085, "highpass", 1800, "sfx", 0.025);
+    else if (element === "fire") this.playNoise(0.23, 0.085, "bandpass", 940, "sfx", 0.02);
+    else if (element === "water") this.playNoise(0.2, 0.06, "bandpass", 1350, "sfx", 0.03);
+    else if (element === "earth") this.playNoise(0.2, 0.09, "lowpass", 360, "sfx", 0.015);
+    else if (element === "void") this.playTone(92, 0.42, 0.09, 38, "sine", "sfx", 0.02);
+  }
+
+  private playTurnCue(owner: Owner) {
+    if (owner === "player") {
+      this.playTone(480, 0.09, 0.065, 720, "triangle");
+      this.playTone(720, 0.14, 0.055, 1040, "triangle", "sfx", 0.08);
+    } else {
+      this.playTone(330, 0.1, 0.055, 240, "square");
+      this.playTone(210, 0.18, 0.06, 110, "sawtooth", "sfx", 0.07);
+    }
+  }
+
+  private playTimerTick(seconds: number) {
+    const urgent = seconds <= 2;
+    this.playTone(urgent ? 940 : 720, urgent ? 0.09 : 0.055, urgent ? 0.08 : 0.045, urgent ? 620 : 680, "square");
+    if (seconds === 1) this.playNoise(0.08, 0.04, "highpass", 1500);
+  }
+
   private playLaunch(element: string, power: number) {
-    this.playTone(160 + power * 2.8, 0.18, 0.055, 480 + power * 2, "triangle");
-    if (power >= 90) this.playTone(element === "thunder" ? 92 : 110, 0.34, 0.065, 38, "sawtooth");
+    const intensity = 0.075 + power * 0.00055;
+    this.playNoise(0.16 + power * 0.0012, intensity * 0.75, "bandpass", 620 + power * 8);
+    this.playTone(150 + power * 2.9, 0.2, intensity, 520 + power * 2.3, "triangle");
+    this.playTone(76 + power * 0.55, 0.24, intensity * 0.75, 38, "sine", "sfx", 0.018);
+    if (power >= 90) this.playTone(element === "thunder" ? 92 : 110, 0.38, 0.12, 34, "sawtooth");
   }
 
   private playImpact(element: string, strength: number) {
-    const volume = Math.min(0.09, 0.025 + strength * 0.007);
-    this.playTone(250 + strength * 24, 0.09, volume, 90 + strength * 5, "triangle");
-    this.playTone(78 + strength * 3, 0.22, volume * 0.72, 34, "sine");
-    if (element === "lightning") this.playTone(1400, 0.1, volume * 0.55, 240, "sawtooth");
-    if (element === "thunder") this.playTone(105, 0.36, volume, 36, "sine");
-    if (element === "water") this.playTone(880, 0.18, volume * 0.55, 330, "sine");
-    if (element === "fire") this.playTone(520, 0.16, volume * 0.45, 130, "square");
+    const volume = Math.min(0.16, 0.055 + strength * 0.012);
+    this.playNoise(0.08 + Math.min(0.12, strength * 0.008), volume * 0.78, "bandpass", 780 + strength * 75);
+    this.playTone(310 + strength * 28, 0.095, volume, 105 + strength * 7, "triangle");
+    this.playTone(72 + strength * 3, 0.25, volume * 0.92, 32, "sine");
+    if (element === "lightning") {
+      this.playTone(1580, 0.13, volume * 0.82, 210, "sawtooth");
+      this.playNoise(0.12, volume * 0.62, "highpass", 2200);
+    }
+    if (element === "thunder") this.playTone(108, 0.42, volume * 1.05, 34, "sine");
+    if (element === "water") this.playTone(960, 0.2, volume * 0.72, 280, "sine");
+    if (element === "fire") this.playNoise(0.2, volume * 0.7, "bandpass", 1150);
+    if (element === "earth") this.playNoise(0.18, volume * 0.78, "lowpass", 430);
+    if (element === "void") this.playTone(155, 0.32, volume * 0.8, 42, "sine");
   }
 
   private playFall(stone: Stone) {
     const variation = Math.floor(Math.random() * 4);
-    this.playTone(730 + variation * 95 + (stone.owner === "player" ? 80 : 0), 0.78, 0.06, 145, "sine");
-    window.setTimeout(() => this.playTone(260 + variation * 55, 0.12, 0.04, 650, "triangle"), 480);
+    const start = 890 + variation * 110 + (stone.owner === "player" ? 90 : 0);
+    this.playNoise(0.62, 0.11, "bandpass", 1100);
+    this.playTone(start, 0.72, 0.13, 150 + variation * 18, "sine");
+    this.playTone(start * 1.07, 0.54, 0.07, 220, "triangle", "sfx", 0.045);
+    this.playTone(240 + variation * 50, 0.13, 0.075, 720, "triangle", "sfx", 0.48);
   }
 
   private playBonus() {
-    this.playTone(520, 0.14, 0.05, 780, "triangle");
-    window.setTimeout(() => this.playTone(780, 0.2, 0.05, 1180, "triangle"), 110);
+    this.playTone(520, 0.14, 0.085, 780, "triangle");
+    this.playTone(780, 0.2, 0.09, 1180, "triangle", "sfx", 0.11);
+    this.playTone(1180, 0.23, 0.065, 1540, "sine", "sfx", 0.24);
   }
 
   private playResult(win: boolean) {
     if (win) {
-      this.playTone(440, 0.2, 0.055, 660, "triangle");
-      window.setTimeout(() => this.playTone(660, 0.24, 0.06, 990, "triangle"), 150);
-    } else this.playTone(270, 0.5, 0.05, 62, "sawtooth");
+      this.playTone(440, 0.2, 0.09, 660, "triangle");
+      this.playTone(660, 0.24, 0.1, 990, "triangle", "sfx", 0.15);
+      this.playTone(990, 0.36, 0.085, 1320, "sine", "sfx", 0.32);
+    } else {
+      this.playNoise(0.48, 0.1, "lowpass", 420);
+      this.playTone(270, 0.58, 0.11, 52, "sawtooth");
+      this.playTone(92, 0.7, 0.095, 31, "sine", "sfx", 0.08);
+    }
   }
 
   private updateTimer(now: number) {
@@ -1869,6 +1990,7 @@ export class Alkkagi3DEngine {
     const next = Math.max(0, Math.ceil((this.phaseDeadline - now) / 1000));
     if (next !== this.timer) {
       this.timer = next;
+      if (next > 0 && next <= 5) this.playTimerTick(next);
       this.emit();
     }
     if (now < this.phaseDeadline) return;
@@ -1876,6 +1998,7 @@ export class Alkkagi3DEngine {
     else if (this.active === "player") {
       this.active = "enemy";
       this.message = "시간 초과 · 상대 턴";
+      this.playUiCue("warning");
       this.phaseDeadline = performance.now() + MATCH_RULES.turnSeconds * 1000;
       this.scheduleAi();
       this.emit();

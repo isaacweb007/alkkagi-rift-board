@@ -69,3 +69,47 @@
 @media(max-height:760px) and (min-width:761px){.squad-builder{inset:58px 10px 8px}.squad-builder-head{padding:11px 18px 9px}.squad-builder-head h1{font-size:21px}.squad-builder-head p{font-size:7px}.selection-counter{padding:5px 12px}.selection-counter b{font-size:23px}.owned-roster{padding:9px 12px 11px}.roster-label{margin-bottom:6px}.roster-card{min-height:194px;padding:8px}.roster-portrait{width:66px;height:66px}.roster-skill{margin:4px 0;padding:4px 6px}.deployment-dock{gap:7px;padding:10px}.deployment-slot{min-height:50px}.deployment-slot>i{width:39px;height:39px}.stone-readout{left:68px;bottom:10px;width:300px;min-height:148px;grid-template-columns:72px 1fr;padding:9px 11px}.stone-readout .selected-concept-portrait{width:72px;height:72px}.stone-readout .skill-card p,.stone-readout footer span{display:none}.stone-readout footer{padding-top:4px}.combat-telemetry{right:230px;bottom:116px;width:205px}.skill-activation{top:152px}.leave-3d{bottom:15px}}
 @media(max-height:560px) and (min-width:761px){.squad-builder{inset:48px 8px 5px}.squad-builder-head p,.roster-label em,.roster-skill em,.squad-rating{display:none}.squad-builder-head{padding:7px 13px}.squad-builder-head h1{font-size:17px}.roster-card-grid{grid-template-columns:repeat(5,minmax(110px,1fr))}.roster-card{min-height:150px}.roster-portrait{width:52px;height:52px}.roster-skill{padding:3px 5px}.unit-stat-bars.compact{margin-top:3px}.deployment-slot{min-height:43px}.deployment-slot>i{width:34px;height:34px}.stone-readout{left:58px;bottom:6px;width:245px;min-height:104px;grid-template-columns:54px 1fr;gap:3px 8px;padding:6px 8px}.stone-readout .selected-concept-portrait{width:54px;height:54px}.stone-readout .skill-card p,.stone-readout .unit-stat-bars,.stone-readout footer{display:none}.combat-telemetry{right:168px;bottom:82px;width:180px}.combat-telemetry>div{padding:5px 7px}.skill-activation{top:108px;min-width:260px;padding:8px 24px}.skill-activation b{font-size:15px}}
 @media(max-width:760px){.rail-stones button{width:29px;height:29px;border-width:1px;box-shadow:0 0 0 2px #080b10}.rail-stones button span{display:none}.stone-readout{left:8px;bottom:8px;width:210px;min-height:86px;grid-template-columns:58px 1fr;padding:7px}.stone-readout .selected-concept-portrait{width:58px;height:58px}.stone-readout .skill-card p,.stone-readout .unit-stat-bars,.stone-readout footer{display:none}.combat-telemetry{display:none}}
+
+/* Audible feedback controls and narrow-screen feature parity. */
+.audio-mixer header{gap:8px}.audio-live{display:inline-flex;align-items:center;gap:4px;margin-left:auto;color:#77ffc1;font-size:5px;letter-spacing:.12em;white-space:nowrap}.audio-live i{width:6px;height:6px;border-radius:50%;background:#59ffad;box-shadow:0 0 10px #59ffad;animation:audioPulse 1.4s ease-in-out infinite}.audio-live.muted{color:#ff7d89}.audio-live.muted i{background:#ff5367;box-shadow:0 0 8px #ff5367;animation:none}.audio-preview{display:flex;width:100%;align-items:center;justify-content:space-between;margin-top:13px;border:1px solid rgba(76,233,255,.38);border-radius:11px;background:linear-gradient(90deg,rgba(32,137,181,.2),rgba(255,191,67,.12));color:#eaf9ff;padding:9px 10px;font-size:7px;letter-spacing:.05em}.audio-preview b{color:var(--gold);font-size:7px;letter-spacing:.15em}.round-control.active{border-color:var(--cyan);box-shadow:inset 0 0 18px rgba(76,233,255,.2),0 0 20px rgba(76,233,255,.16)}@keyframes audioPulse{50%{opacity:.45;transform:scale(.72)}}
+
+@media(min-width:761px) and (max-width:900px){.stone-readout{width:300px;grid-template-columns:74px 1fr;min-height:142px}.stone-readout .selected-concept-portrait{width:74px;height:74px}.stone-readout .skill-card{display:block}.stone-readout .skill-card p{display:none}.stone-readout .unit-stat-bars{display:grid}.combat-telemetry{right:225px;width:190px}}
+@media(min-width:761px) and (max-height:560px){.stone-readout .skill-card{display:block}.stone-readout .skill-card p{display:none}}
+
+@media(max-width:760px){
+  .squad-builder{inset:64px 6px 6px;border-radius:20px;grid-template-rows:auto minmax(0,1fr)}
+  .squad-builder-head{padding:12px 13px 10px;gap:10px}
+  .squad-builder-head h1{font-size:20px;margin:2px 0}
+  .squad-builder-head p{max-width:260px;font-size:6px;line-height:1.4}
+  .selection-counter{min-width:108px;padding:6px 9px;border-radius:12px}
+  .selection-counter span{font-size:5px}.selection-counter b{font-size:23px}
+  .squad-workspace{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto}
+  .owned-roster{padding:8px 9px 7px;min-height:0}
+  .roster-label{gap:8px;margin-bottom:6px}.roster-label em{display:none}
+  .roster-card-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;padding:2px 3px 7px 1px}
+  .roster-card{min-height:178px;padding:8px;border-radius:14px}
+  .roster-portrait{width:58px;height:58px;margin-top:1px}
+  .roster-identity b{font-size:11px}.roster-skill{margin:5px 0;padding:4px 5px}.roster-skill b{font-size:8px}.roster-skill em{display:none}
+  .pick-order{width:22px;height:22px;font-size:11px}
+  .deployment-dock{grid-template-rows:auto auto auto;gap:6px;border-left:0;border-top:1px solid rgba(255,211,106,.26);padding:8px 9px}
+  .dock-title{display:flex;align-items:baseline;justify-content:space-between}.dock-title b{font-size:12px}
+  .deployment-slots{display:flex;gap:5px;overflow-x:auto;padding-bottom:2px}
+  .deployment-slot{flex:1 0 96px;grid-template-columns:19px 32px minmax(0,1fr);gap:5px;min-height:42px;padding:4px}
+  .deployment-slot>span{width:18px;height:18px;font-size:6px}.deployment-slot>i{width:31px;height:31px}.deployment-slot div b{overflow:hidden;font-size:8px;text-overflow:ellipsis;white-space:nowrap}.deployment-slot div em{display:none}
+  .squad-rating{display:none}.dock-actions{grid-template-columns:72px 1fr}.dock-actions button{padding:8px;font-size:7px}
+  .audio-mixer{right:8px;top:58px;width:min(300px,calc(100vw - 16px));padding:12px}
+  .stone-readout{left:8px;bottom:8px;width:220px;min-height:112px;grid-template-columns:58px minmax(0,1fr);grid-template-rows:auto auto auto;gap:4px 8px;padding:7px 8px;border-radius:38px 13px 13px 38px}
+  .stone-readout .selected-concept-portrait{grid-row:1/3;width:58px;height:58px}
+  .inspector-heading h2{font-size:12px}.inspector-heading small{font-size:5px}.inspector-heading em{font-size:6px}
+  .stone-readout .skill-card{display:block;grid-column:2;margin:0;padding:4px 5px}
+  .stone-readout .skill-card small{font-size:4px}.stone-readout .skill-card b{font-size:8px}.stone-readout .skill-card p{display:none}
+  .stone-readout .unit-stat-bars{display:grid;grid-column:1/3;grid-template-columns:repeat(5,1fr);gap:3px}
+  .stone-readout .unit-stat{display:grid;grid-template-columns:1fr auto;grid-template-rows:auto 4px;gap:2px;text-align:left;font-size:5px}
+  .stone-readout .unit-stat i{grid-column:1/3;height:4px;gap:1px}.stone-readout .unit-stat strong{display:block;font-size:5px}.stone-readout footer{display:none}
+  .combat-telemetry{display:grid;right:8px;top:174px;bottom:auto;width:142px;border-radius:11px}
+  .combat-telemetry>div{padding:5px 6px}.combat-telemetry small{font-size:4px}.combat-telemetry b{font-size:8px}
+  .leave-3d{left:50%;bottom:132px;transform:translateX(-50%);padding:7px 9px}
+  .skill-activation{top:164px;min-width:230px;max-width:calc(100vw - 150px);padding:9px 22px}.skill-activation b{font-size:14px}.skill-activation span{font-size:6px;text-align:center}
+}
+
+@media(max-width:430px){.selection-counter{min-width:82px}.squad-builder-head p{display:none}.roster-card-grid{grid-template-columns:1fr 1fr}.stone-readout{width:190px}.combat-telemetry{width:126px}.power-3d{width:138px}.leave-3d{bottom:128px}.skill-activation{max-width:calc(100vw - 40px)}}

@@ -241,15 +241,25 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(engine, /applyEdgeGrip/);
   assert.match(engine, /designReference = GOLDEN_ART\.boardReference/);
   assert.match(engine, /setAudioSettings/);
+  assert.match(engine, /playUiCue/);
+  assert.match(engine, /previewAudio/);
+  assert.match(engine, /private playNoise/);
+  assert.match(engine, /private playSkillCue/);
+  assert.match(engine, /createDynamicsCompressor/);
+  assert.match(engine, /private playTimerTick/);
   assert.match(engine, /private tryRescue/);
   assert.match(engine, /aimTargetRing/);
   assert.match(engine, /selectionRing/);
   assert.match(component, /WHITE STONES/);
   assert.match(component, /BLACK STONES/);
   assert.match(component, /사운드 믹서/);
+  assert.match(component, /data-testid="audio-preview"/);
+  assert.match(component, /alkkagi-audio-v2/);
   assert.match(component, /rift-score/);
   assert.match(component, /TeamRail/);
   assert.match(component, /power-dial/);
+  assert.match(component, /POSITION YOUR SQUAD/);
+  assert.match(component, /MATCH COMPLETE/);
   assert.match(component, /aria-live="polite"/);
   assert.match(component, /data-testid="reset-camera"/);
   assert.match(component, /360° 회전/);
@@ -262,11 +272,17 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(styles, /camera-parallax/);
   assert.match(styles, /\.arena-app>\.arena-match-ui\{position:fixed\}/);
   assert.match(styles, /max-height:560px/);
+  assert.match(styles, /narrow-screen feature parity/);
+  assert.match(styles, /.combat-telemetry\{display:grid;right:8px;top:174px/);
+  assert.match(styles, /.squad-workspace\{grid-template-columns:1fr;grid-template-rows:minmax\(0,1fr\) auto\}/);
   for (const character of ["몽돌", "브릭 경", "루나벨", "핀치", "번개배달 모모", "비트캣", "세이프티 박사", "제로-볼트", "코멧 키드", "오로라-8"]) {
     assert.match(engine, new RegExp(character));
   }
   for (const skill of ["균형 본능", "철벽 성채", "문라이트 커브", "체인 스파크", "블루 부스터", "리듬 뱅크", "긴급 구조", "볼트 카운터", "라스트 코멧", "프리즘 조준"]) {
     assert.match(engine, new RegExp(skill));
+  }
+  for (const statHook of [/stats\[0\]/, /stats\[1\]/, /stats\[2\]/, /stats\[3\]/, /stats\[4\]/]) {
+    assert.match(engine, statHook);
   }
   assert.match(core, /export function solveCircleCollision/);
   assert.match(core, /export function applyEdgeGrip/);

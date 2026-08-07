@@ -38,7 +38,7 @@ const initialSnapshot: ArenaSnapshot = {
   replay: false,
 };
 
-const DEFAULT_AUDIO_SETTINGS: AudioSettings = { master: 0.8, sfx: 0.9, music: 0.35, muted: false };
+const DEFAULT_AUDIO_SETTINGS: AudioSettings = { master: 0.9, sfx: 1, music: 0.3, muted: false };
 const AUDIO_CHANNELS: Array<{ key: "master" | "sfx" | "music"; label: string }> = [
   { key: "master", label: "전체 음량" },
   { key: "sfx", label: "충돌·효과음" },
@@ -60,7 +60,21 @@ export default function AlkkagiArena() {
   const [arena, setArena] = useState<ArenaKind>("modern");
   const [aiLevel, setAiLevel] = useState(3);
   const [audioOpen, setAudioOpen] = useState(false);
-  const [audioSettings, setAudioSettings] = useState<AudioSettings>(DEFAULT_AUDIO_SETTINGS);
+  const [audioSettings, setAudioSettings] = useState<AudioSettings>(() => {
+    if (typeof window === "undefined") return DEFAULT_AUDIO_SETTINGS;
+    try {
+      const saved = JSON.parse(localStorage.getItem("alkkagi-audio-v2") || "null") as Partial<AudioSettings> | null;
+      if (!saved) return DEFAULT_AUDIO_SETTINGS;
+      return {
+        master: typeof saved.master === "number" ? Math.max(0, Math.min(1, saved.master)) : DEFAULT_AUDIO_SETTINGS.master,
+        sfx: typeof saved.sfx === "number" ? Math.max(0, Math.min(1, saved.sfx)) : DEFAULT_AUDIO_SETTINGS.sfx,
+        music: typeof saved.music === "number" ? Math.max(0, Math.min(1, saved.music)) : DEFAULT_AUDIO_SETTINGS.music,
+        muted: Boolean(saved.muted),
+      };
+    } catch {
+      return DEFAULT_AUDIO_SETTINGS;
+    }
+  });
   const [profile, setProfile] = useState({ id: "", level: 1, xp: 0, points: 500 });
   const [lastReplay, setLastReplay] = useState<MatchReplay | null>(null);
   const [pendingMatch, setPendingMatch] = useState<{ count: 3 | 5; mode: MatchMode }>({ count: 3, mode: "practice" });
@@ -94,6 +108,9 @@ export default function AlkkagiArena() {
 
   useEffect(() => {
     engineRef.current?.setAudioSettings(audioSettings);
+    try {
+      localStorage.setItem("alkkagi-audio-v2", JSON.stringify(audioSettings));
+    } catch {}
   }, [audioSettings]);
 
   useEffect(() => {
@@ -159,6 +176,7 @@ export default function AlkkagiArena() {
   }, [snapshot.phase, snapshot.winner, snapshot.count, snapshot.message, snapshot.replay, aiLevel, profile.id]);
 
   const prepareMatch = (count: 3 | 5, mode: MatchMode) => {
+    engineRef.current?.playUiCue("confirm");
     const available = CHARACTER_CATALOG.map((character) => character.style);
     setSelectedLoadout((current) => [...current.filter((style) => available.includes(style)), ...available.filter((style) => !current.includes(style))].slice(0, count));
     setPendingMatch({ count, mode });
@@ -167,7 +185,10 @@ export default function AlkkagiArena() {
   };
 
   const toggleLoadout = (style: CharacterStyle) => {
-    setSelectedLoadout((current) => current.includes(style) ? current.filter((candidate) => candidate !== style) : current.length < pendingMatch.count ? [...current, style] : current);
+    const removing = selectedLoadout.includes(style);
+    const canAdd = selectedLoadout.length < pendingMatch.count;
+    engineRef.current?.playUiCue(removing ? "cancel" : canAdd ? "select" : "warning");
+    setSelectedLoadout((current) => removing ? current.filter((candidate) => candidate !== style) : current.length < pendingMatch.count ? [...current, style] : current);
   };
 
   const deploySquad = () => {
@@ -180,6 +201,7 @@ export default function AlkkagiArena() {
   };
 
   const returnLobby = () => {
+    engineRef.current?.playUiCue("cancel");
     setScreen("lobby");
     setSnapshot(initialSnapshot);
     engineRef.current?.startDemo();
@@ -200,7 +222,15 @@ export default function AlkkagiArena() {
   };
 
   const toggleMute = () => {
-    setAudioSettings((current) => ({ ...current, muted: !current.muted }));
+    const next = { ...audioSettings, muted: !audioSettings.muted };
+    engineRef.current?.setAudioSettings(next);
+    if (!next.muted) engineRef.current?.playUiCue("confirm");
+    setAudioSettings(next);
+  };
+
+  const toggleAudioPanel = () => {
+    engineRef.current?.playUiCue("select");
+    setAudioOpen((open) => !open);
   };
 
   const inspectStone = useCallback((stoneId: string) => {
@@ -220,13 +250,14 @@ export default function AlkkagiArena() {
       <header className="arena-topbar">
         <a className="arena-brand" href="/ALKAGI_CONCEPT_BOOK.html"><span>✦</span><b>ALKKAGI<small>RIFT BOARD · WEBGL</small></b></a>
         <div className="arena-profile"><span>LV <b>{profile.level}</b></span><i /><span>◆ {profile.points} PP</span><i /><span>{profile.xp} XP</span></div>
-        <button className={`round-control ${audioOpen ? "active" : ""}`} onClick={() => setAudioOpen((open) => !open)} aria-label="사운드 믹서 열기" aria-expanded={audioOpen}>{audioSettings.muted ? "×" : "♪"}</button>
+        <button className={`round-control ${audioOpen ? "active" : ""}`} onClick={toggleAudioPanel} aria-label="사운드 믹서 열기" aria-expanded={audioOpen}>{audioSettings.muted ? "×" : "♪"}</button>
       </header>
 
       {audioOpen && <aside className="audio-mixer" data-testid="audio-mixer" aria-label="게임 사운드 조정">
-        <header><div><small>3-CHANNEL AUDIO</small><b>사운드 믹서</b></div><button onClick={toggleMute}>{audioSettings.muted ? "음소거 해제" : "음소거"}</button></header>
+        <header><div><small>IMPACT AUDIO ENGINE</small><b>사운드 믹서</b></div><span className={`audio-live ${audioSettings.muted ? "muted" : ""}`}><i /> {audioSettings.muted ? "MUTED" : "SFX LIVE"}</span><button onClick={toggleMute}>{audioSettings.muted ? "음소거 해제" : "음소거"}</button></header>
         {AUDIO_CHANNELS.map(({ key, label }) => <label key={key}><span>{label}<b>{Math.round(audioSettings[key] * 100)}</b></span><input aria-label={label} type="range" min="0" max="1" step="0.05" value={audioSettings[key]} onChange={(event) => updateAudioChannel(key, Number(event.target.value))}/></label>)}
-        <p>충돌·번개·화염·추락 음성과 아레나 음악을 독립 조절합니다.</p>
+        <button className="audio-preview" data-testid="audio-preview" onClick={() => engineRef.current?.previewAudio()}>타격·스킬 효과음 테스트 <b>PLAY</b></button>
+        <p>다층 충돌음·속성 스킬·귀여운 추락 비명과 아레나 음악을 독립 조절합니다.</p>
       </aside>}
 
       {screen === "lobby" && <section className="arena-lobby">
@@ -235,7 +266,7 @@ export default function AlkkagiArena() {
         <p>확정된 10종 캐릭터 원화와 아레나 원화를 하나의 골든 아트 규격으로 연결했습니다. 매 경기 흑돌과 백돌 진영이 무작위로 정해지며, 고유 장비와 스킬은 팀 색상과 관계없이 그대로 유지됩니다.</p>
 
         <div className="arena-selector" aria-label="아레나 선택">
-          {(Object.keys(GOLDEN_ARENAS) as ArenaKind[]).map((key) => <button key={key} className={arena === key ? "active" : ""} onClick={() => setArena(key)}><small>{GOLDEN_ARENAS[key].sub}</small><b>{GOLDEN_ARENAS[key].name}</b></button>)}
+          {(Object.keys(GOLDEN_ARENAS) as ArenaKind[]).map((key) => <button key={key} className={arena === key ? "active" : ""} onClick={() => { setArena(key); engineRef.current?.playUiCue("select"); }}><small>{GOLDEN_ARENAS[key].sub}</small><b>{GOLDEN_ARENAS[key].name}</b></button>)}
         </div>
 
         <aside className="golden-roster" aria-label="골든 아트 캐릭터 10종">
@@ -268,7 +299,7 @@ export default function AlkkagiArena() {
       {screen === "match" && <section className="arena-match-ui">
         <div className="rift-score" aria-label={`전력 균형: 나 ${snapshot.playerAlive}, 상대 ${snapshot.enemyAlive}`}>
           <div className={`score-wing player tone-${snapshot.playerTone}`}><Pips alive={snapshot.playerAlive} count={snapshot.count} tone={snapshot.playerTone}/></div>
-          <div className="rift-core"><i /><span>{snapshot.active === "player" ? "YOU" : "AI"}</span></div>
+          <div className="rift-core"><i /><span>{snapshot.phase === "placement" ? "SET" : snapshot.phase === "result" ? "END" : snapshot.active === "player" ? "YOU" : "AI"}</span></div>
           <div className={`score-wing enemy tone-${snapshot.enemyTone}`}><Pips alive={snapshot.enemyAlive} count={snapshot.count} tone={snapshot.enemyTone}/></div>
         </div>
         <TeamRail side="player" roster={snapshot.playerRoster} selectedId={snapshot.selectedId} tone={snapshot.playerTone} onInspect={inspectStone} />
@@ -280,11 +311,11 @@ export default function AlkkagiArena() {
 
         <CharacterInspector snapshot={snapshot} />
 
-        <div className={`turn-ribbon ${snapshot.active === "player" ? "your" : "enemy"}`}>{snapshot.replay ? "DETERMINISTIC REPLAY" : snapshot.active === "player" ? "YOUR TURN" : "ENEMY TURN"}</div>
+        <div className={`turn-ribbon ${snapshot.active === "player" ? "your" : "enemy"}`}>{snapshot.phase === "placement" ? "POSITION YOUR SQUAD" : snapshot.phase === "result" ? "MATCH COMPLETE" : snapshot.replay ? "DETERMINISTIC REPLAY" : snapshot.active === "player" ? "YOUR TURN" : "ENEMY TURN"}</div>
         {snapshot.bonus && <div className="bonus-3d"><small>RING-OUT COMBO</small><b>BONUS SHOT!</b></div>}
         <SkillActivation event={snapshot.skillEvent} />
 
-        {!snapshot.replay && <div className="power-3d" style={{ "--shot-power": snapshot.power } as CSSProperties} aria-label={`발사 파워 ${snapshot.power} 퍼센트`}>
+        {!snapshot.replay && snapshot.phase !== "result" && <div className="power-3d" style={{ "--shot-power": snapshot.power } as CSSProperties} aria-label={`발사 파워 ${snapshot.power} 퍼센트`}>
           <div className="power-dial">
             <div className="power-label"><small>SHOT POWER</small><b>{snapshot.power >= 90 ? "MAXIMUM" : snapshot.power >= 70 ? "HEAVY" : "CONTROL"}</b></div>
             <div className="power-scale"><i /></div>
@@ -295,7 +326,7 @@ export default function AlkkagiArena() {
           <div className="power-reticle"><i /><b /></div>
           <footer><span>CONTROL</span><span>HEAVY</span><span>MAX</span></footer>
         </div>}
-        {!snapshot.replay && <CombatTelemetry snapshot={snapshot} />}
+        {!snapshot.replay && snapshot.phase !== "result" && <CombatTelemetry snapshot={snapshot} />}
         {!snapshot.replay && snapshot.phase === "placement" && <button data-testid="confirm-placement" className="ready-3d" onClick={() => engineRef.current?.confirmPlacement()}>배치 확정 <b>READY</b></button>}
         <button data-testid="leave-arena" className="leave-3d" onClick={returnLobby}>← 로비</button>
         <button data-testid="reset-camera" className="camera-reset" onClick={() => engineRef.current?.resetCamera()} aria-label="3D 카메라 시점 초기화"><b>360°</b><span>VIEW RESET</span></button>
