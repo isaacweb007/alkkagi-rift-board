@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import { Alkkagi3DEngine, CHARACTER_CATALOG, type ArenaKind, type ArenaSnapshot, type AudioSettings, type CharacterStyle, type MatchMode, type TeamTone } from "./engine";
 import { GOLDEN_ARENAS, GOLDEN_CHARACTER_NAMES } from "./art-direction";
 import { validateAndNormalizeReplay, type MatchReplay } from "./replay";
-import { CharacterInspector, CombatTelemetry, SkillActivation, SquadBuilder, TeamRail } from "./CharacterPanels";
+import { CharacterInspector, CombatFeed, CombatTelemetry, SkillActivation, SpinControl, SquadBuilder, TeamRail } from "./CharacterPanels";
 
 const initialSnapshot: ArenaSnapshot = {
   phase: "demo",
@@ -31,6 +31,11 @@ const initialSnapshot: ArenaSnapshot = {
   playerRoster: [],
   enemyRoster: [],
   skillEvent: null,
+  combatEvents: [],
+  aiming: false,
+  canShoot: false,
+  trajectoryTarget: null,
+  trajectoryTargetOwner: null,
   count: 3,
   bonus: false,
   winner: null,
@@ -327,6 +332,8 @@ export default function AlkkagiArena() {
           <footer><span>CONTROL</span><span>HEAVY</span><span>MAX</span></footer>
         </div>}
         {!snapshot.replay && snapshot.phase !== "result" && <CombatTelemetry snapshot={snapshot} />}
+        {!snapshot.replay && snapshot.phase === "battle" && <SpinControl snapshot={snapshot} onChange={(value) => engineRef.current?.setAimSpin(value)} />}
+        {snapshot.phase !== "result" && <CombatFeed snapshot={snapshot} />}
         {!snapshot.replay && snapshot.phase === "placement" && <button data-testid="confirm-placement" className="ready-3d" onClick={() => engineRef.current?.confirmPlacement()}>배치 확정 <b>READY</b></button>}
         <button data-testid="leave-arena" className="leave-3d" onClick={returnLobby}>← 로비</button>
         <button data-testid="reset-camera" className="camera-reset" onClick={() => engineRef.current?.resetCamera()} aria-label="3D 카메라 시점 초기화"><b>360°</b><span>VIEW RESET</span></button>

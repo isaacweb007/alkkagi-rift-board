@@ -135,3 +135,36 @@ export const CombatTelemetry = memo(function CombatTelemetry({ snapshot }: { sna
     <div><small>WEIGHT</small><b>{snapshot.selectedStats[1]}/5</b></div>
   </div>;
 });
+
+export const SpinControl = memo(function SpinControl({ snapshot, onChange }: { snapshot: ArenaSnapshot; onChange: (value: number) => void }) {
+  const direction = snapshot.spin === 0 ? "NEUTRAL" : snapshot.spin > 0 ? "RIGHT CURVE" : "LEFT CURVE";
+  const disabled = !snapshot.canShoot;
+  const forecast = snapshot.aiming
+    ? snapshot.trajectoryTarget
+      ? `${snapshot.trajectoryTargetOwner === "enemy" ? "TARGET LOCK" : "ALLY WARNING"} · ${snapshot.trajectoryTarget}`
+      : "CURVE PATH · CLEAR"
+    : disabled ? "WAIT FOR YOUR TURN" : "회전을 먼저 정한 뒤 돌을 당기세요";
+
+  return <section className={`spin-console ${snapshot.spin === 0 ? "neutral" : snapshot.spin > 0 ? "right" : "left"}`} data-testid="spin-control" aria-label="샷 회전 조절">
+    <header><div><small>CURVE CONTROL</small><b>SHOT SPIN</b></div><strong>{direction}<span>{snapshot.spin > 0 ? "+" : ""}{snapshot.spin}%</span></strong></header>
+    <div className="spin-input-row">
+      <button disabled={disabled} onClick={() => onChange(Math.max(-1, snapshot.spin / 100 - 0.2))} aria-label="왼쪽 회전 증가">↶</button>
+      <input disabled={disabled} aria-label="샷 회전량" type="range" min="-100" max="100" step="20" value={snapshot.spin} onChange={(event) => onChange(Number(event.target.value) / 100)} />
+      <button disabled={disabled} onClick={() => onChange(Math.min(1, snapshot.spin / 100 + 0.2))} aria-label="오른쪽 회전 증가">↷</button>
+    </div>
+    <footer><button disabled={disabled || snapshot.spin === 0} onClick={() => onChange(0)}>ZERO</button><span className={snapshot.trajectoryTargetOwner ? `owner-${snapshot.trajectoryTargetOwner}` : ""}>{forecast}</span></footer>
+  </section>;
+});
+
+export const CombatFeed = memo(function CombatFeed({ snapshot }: { snapshot: ArenaSnapshot }) {
+  const events = [...snapshot.combatEvents].reverse().slice(0, 4);
+  return <aside className="combat-feed" data-testid="combat-feed" aria-label="실시간 전투 기록" aria-live="polite">
+    <header><div><small>LIVE BATTLE DATA</small><b>전투 기록</b></div><span><i /> LIVE</span></header>
+    <ol>
+      {events.map((event, index) => <li className={`kind-${event.kind} owner-${event.owner || "system"} ${index === 0 ? "latest" : ""}`} key={event.id}>
+        <i>{event.kind === "ringout" ? "▼" : event.kind === "skill" ? "✦" : event.kind === "impact" ? "◆" : event.kind === "shot" ? "➤" : event.kind === "bonus" ? "+1" : event.kind === "result" ? "★" : "•"}</i>
+        <span><b>{event.title}</b><small>{event.detail}</small></span>
+      </li>)}
+    </ol>
+  </aside>;
+});

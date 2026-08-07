@@ -88,6 +88,24 @@ export function integrateBody(body: BodyState, dt: number, durability: number, s
   return { ...body, x, z, vx, vz };
 }
 
+export function buildAimTrajectory(originX: number, originZ: number, directionX: number, directionZ: number, length: number, curveStrength: number, steps = 24): Array<{ x: number; z: number }> {
+  const directionLength = Math.hypot(directionX, directionZ) || 1;
+  const normalizedX = directionX / directionLength;
+  const normalizedZ = directionZ / directionLength;
+  const perpendicularX = -normalizedZ;
+  const perpendicularZ = normalizedX;
+  const safeSteps = Math.max(2, Math.min(64, Math.round(steps)));
+  return Array.from({ length: safeSteps + 1 }, (_, index) => {
+    const progress = index / safeSteps;
+    const distance = length * progress;
+    const curve = length * curveStrength * progress * progress;
+    return {
+      x: originX + normalizedX * distance + perpendicularX * curve,
+      z: originZ + normalizedZ * distance + perpendicularZ * curve,
+    };
+  });
+}
+
 export function solveCircleCollision(firstInput: BodyState, secondInput: BodyState, restitution = 0.9): CollisionSolution {
   const first = { ...firstInput };
   const second = { ...secondInput };

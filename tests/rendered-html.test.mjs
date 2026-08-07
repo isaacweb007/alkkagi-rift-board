@@ -249,6 +249,10 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(engine, /private playTimerTick/);
   assert.match(engine, /private tryRescue/);
   assert.match(engine, /aimTargetRing/);
+  assert.match(engine, /private updateAimGuide/);
+  assert.match(engine, /setAimSpin/);
+  assert.match(engine, /trajectoryTarget/);
+  assert.match(engine, /pushCombatEvent/);
   assert.match(engine, /selectionRing/);
   assert.match(component, /WHITE STONES/);
   assert.match(component, /BLACK STONES/);
@@ -267,6 +271,9 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(characterPanels, /data-testid="deploy-squad"/);
   assert.match(characterPanels, /data-testid="character-inspector"/);
   assert.match(characterPanels, /SKILL ACTIVATED/);
+  assert.match(characterPanels, /data-testid="spin-control"/);
+  assert.match(characterPanels, /data-testid="combat-feed"/);
+  assert.match(characterPanels, /샷 회전량/);
   assert.match(styles, /audio-mixer/);
   assert.match(styles, /camera-reset/);
   assert.match(styles, /camera-parallax/);
@@ -274,6 +281,9 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(styles, /max-height:560px/);
   assert.match(styles, /narrow-screen feature parity/);
   assert.match(styles, /.combat-telemetry\{display:grid;right:8px;top:174px/);
+  assert.match(styles, /Playability pass: touch spin control/);
+  assert.match(styles, /.spin-console/);
+  assert.match(styles, /.combat-feed/);
   assert.match(styles, /.squad-workspace\{grid-template-columns:1fr;grid-template-rows:minmax\(0,1fr\) auto\}/);
   for (const character of ["몽돌", "브릭 경", "루나벨", "핀치", "번개배달 모모", "비트캣", "세이프티 박사", "제로-볼트", "코멧 키드", "오로라-8"]) {
     assert.match(engine, new RegExp(character));

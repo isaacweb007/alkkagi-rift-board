@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { applyEdgeGrip, calculateLaunchVelocity, integrateBody, isRingOut, MATCH_RULES, resolveShotOutcome, solveCircleCollision } from "./core";
+import { applyEdgeGrip, buildAimTrajectory, calculateLaunchVelocity, integrateBody, isRingOut, MATCH_RULES, resolveShotOutcome, solveCircleCollision } from "./core";
 import { GOLDEN_ART, GOLDEN_ARENAS, type GoldenArenaKind } from "./art-direction";
 import { createReplay, type MatchReplay, type ReplayShot } from "./replay";
 
@@ -37,6 +37,8 @@ export type ArenaStoneSummary = {
   style: CharacterStyle;
 };
 export type SkillEvent = { id: number; owner: Owner; character: string; name: string; detail: string; element: string };
+export type CombatEventKind = "system" | "shot" | "impact" | "skill" | "ringout" | "bonus" | "result";
+export type CombatEvent = { id: number; kind: CombatEventKind; owner: Owner | null; title: string; detail: string };
 
 export type ArenaSnapshot = {
   phase: Phase;
@@ -63,6 +65,11 @@ export type ArenaSnapshot = {
   playerRoster: ArenaStoneSummary[];
   enemyRoster: ArenaStoneSummary[];
   skillEvent: SkillEvent | null;
+  combatEvents: CombatEvent[];
+  aiming: boolean;
+  canShoot: boolean;
+  trajectoryTarget: string | null;
+  trajectoryTargetOwner: Owner | null;
   count: 3 | 5;
   bonus: boolean;
   winner: Owner | null;
@@ -185,6 +192,9 @@ export class Alkkagi3DEngine {
   private bonus = false;
   private skillEvent: SkillEvent | null = null;
   private skillEventSequence = 0;
+  private combatEvents: CombatEvent[] = [];
+  private combatEventSequence = 0;
+  private trajectoryTarget: Stone | null = null;
   private cameraShake = 0;
   private cameraTarget = new THREE.Vector3(0, 0.2, 0);
   private cameraYaw = 0;
@@ -380,6 +390,16 @@ export class Alkkagi3DEngine {
     this.container.style.setProperty("--camera-parallax", "0%");
   }
 
+  setAimSpin(value: number) {
+    if (this.replayMode || this.phase !== "battle" || this.active !== "player" || this.shotMoving) return;
+    const next = THREE.MathUtils.clamp(Math.round(value * 5) / 5, -1, 1);
+    if (next === this.aimSpin) return;
+    this.aimSpin = next;
+    this.playUiCue(next === 0 ? "confirm" : "select");
+    if (this.aiming) this.updateAimGuide();
+    this.emit();
+  }
+
   inspectStone(stoneId: string) {
     const stone = this.stones.find((candidate) => candidate.id === stoneId);
     if (stone) {
@@ -418,6 +438,9 @@ export class Alkkagi3DEngine {
     this.playerLoadout = [...PLAYER_ROSTER];
     this.enemyLoadout = [...DEMON_ROSTER];
     this.skillEvent = null;
+    this.combatEvents = [];
+    this.combatEventSequence = 0;
+    this.trajectoryTarget = null;
     this.winner = null;
     this.bonus = false;
     this.clearStones();
@@ -464,6 +487,10 @@ export class Alkkagi3DEngine {
     this.shotMoving = false;
     this.bonus = false;
     this.skillEvent = null;
+    this.combatEvents = [];
+    this.combatEventSequence = 0;
+    this.trajectoryTarget = null;
+    this.pushCombatEvent("system", null, "전투 배치", `${config.count} VS ${config.count} · 20초 배치 단계`);
     this.message = "20초 안에 자신의 돌을 배치하세요";
     this.phaseDeadline = performance.now() + MATCH_RULES.placementSeconds * 1000;
     this.timer = MATCH_RULES.placementSeconds;
@@ -487,6 +514,7 @@ export class Alkkagi3DEngine {
     this.phase = "battle";
     this.active = this.first;
     this.message = this.first === "player" ? "선공입니다 · 돌을 당겨 발사하세요" : "상대가 선공입니다";
+    this.pushCombatEvent("system", this.first, "선공 결정", this.first === "player" ? "당신이 첫 샷을 시작합니다" : "지옥 AI가 첫 샷을 시작합니다");
     this.phaseDeadline = performance.now() + MATCH_RULES.turnSeconds * 1000;
     this.timer = MATCH_RULES.turnSeconds;
     this.playUiCue("confirm");
@@ -521,6 +549,10 @@ export class Alkkagi3DEngine {
     this.shotMoving = false;
     this.bonus = false;
     this.skillEvent = null;
+    this.combatEvents = [];
+    this.combatEventSequence = 0;
+    this.trajectoryTarget = null;
+    this.pushCombatEvent("system", null, "매치 아카이브", `${replay.shots.length}개 샷을 물리엔진으로 재생`);
     this.timer = 0;
     this.message = "REPLAY · 기록된 경기를 재생합니다";
     this.clearStones();
@@ -1105,6 +1137,7 @@ export class Alkkagi3DEngine {
     }
     this.stones = [];
     this.selected = null;
+    this.trajectoryTarget = null;
     this.aimLine.visible = false;
     this.pullLine.visible = false;
     this.aimArrow.visible = false;
@@ -1141,6 +1174,11 @@ export class Alkkagi3DEngine {
     };
   }
 
+  private pushCombatEvent(kind: CombatEventKind, owner: Owner | null, title: string, detail: string) {
+    this.combatEventSequence += 1;
+    this.combatEvents = [...this.combatEvents, { id: this.combatEventSequence, kind, owner, title, detail }].slice(-6);
+  }
+
   private triggerSkill(stone: Stone, detail: string) {
     const now = performance.now();
     if (now - stone.lastSkillTrigger < 420) return;
@@ -1156,6 +1194,7 @@ export class Alkkagi3DEngine {
     };
     this.playSkillCue(stone);
     this.message = `${stone.character.skillName} · ${detail}`;
+    this.pushCombatEvent("skill", stone.owner, stone.character.skillName, `${stone.character.name} · ${detail}`);
   }
 
   private launchSkillDetail(stone: Stone, power: number): string {
@@ -1202,6 +1241,11 @@ export class Alkkagi3DEngine {
       playerRoster: this.stones.filter((stone) => stone.owner === "player").map((stone) => this.stoneSummary(stone)),
       enemyRoster: this.stones.filter((stone) => stone.owner === "enemy").map((stone) => this.stoneSummary(stone)),
       skillEvent: this.skillEvent,
+      combatEvents: this.combatEvents,
+      aiming: this.aiming,
+      canShoot: !this.replayMode && this.phase === "battle" && this.active === "player" && !this.shotMoving,
+      trajectoryTarget: this.trajectoryTarget?.character.name || null,
+      trajectoryTargetOwner: this.trajectoryTarget?.owner || null,
       count: this.count,
       bonus: this.bonus,
       winner: this.winner,
@@ -1288,6 +1332,58 @@ export class Alkkagi3DEngine {
     this.emit();
   };
 
+  private updateAimGuide() {
+    if (!this.aiming || !this.selected) return;
+    if (this.phase !== "battle" || this.active !== "player" || this.shotMoving || this.replayMode) {
+      this.cancelPointer();
+      return;
+    }
+    const stonePosition = this.selected.group.position;
+    const drag = new THREE.Vector2(stonePosition.x - this.aimPoint.x, stonePosition.z - this.aimPoint.z);
+    this.power = THREE.MathUtils.clamp(drag.length() / 3.1 * 100, 0, 100);
+    const direction = drag.lengthSq() > 0 ? drag.normalize() : new THREE.Vector2(0, -1);
+    const precision = this.selected.character.stats[3];
+    const skillGuide = this.selected.character.skill === "prismAim" ? 1.32 : this.selected.character.skill === "beatBank" ? 1.16 : 1;
+    const guideLength = (1.4 + precision * 0.38) * skillGuide;
+    const spinMultiplier = this.selected.character.skill === "moonCurve" ? 1.4 : this.selected.character.skill === "beatBank" ? 1.25 : 1;
+    const curveStrength = this.aimSpin * (0.1 + this.selected.character.stats[4] * 0.025) * spinMultiplier * (0.72 + this.power * 0.003);
+    const points: THREE.Vector3[] = [];
+    this.trajectoryTarget = null;
+
+    const trajectory = buildAimTrajectory(stonePosition.x, stonePosition.z, direction.x, direction.y, guideLength, curveStrength);
+    for (let index = 0; index < trajectory.length; index += 1) {
+      const point = new THREE.Vector3(trajectory[index].x, 0.79, trajectory[index].z);
+      points.push(point);
+      if (index < 2) continue;
+      const target = this.stones.find((stone) => stone !== this.selected && stone.alive
+        && Math.hypot(point.x - stone.group.position.x, point.z - stone.group.position.z) <= stone.radius + this.selected!.radius);
+      if (target) {
+        this.trajectoryTarget = target;
+        break;
+      }
+    }
+
+    const guideEnd = points.at(-1) || new THREE.Vector3(stonePosition.x, 0.79, stonePosition.z);
+    const guidePrevious = points.at(-2) || new THREE.Vector3(stonePosition.x, 0.79, stonePosition.z);
+    const tangent = guideEnd.clone().sub(guidePrevious).setY(0).normalize();
+    this.aimLine.geometry.setFromPoints(points);
+    this.aimLine.computeLineDistances();
+    this.pullLine.geometry.setFromPoints([
+      new THREE.Vector3(stonePosition.x, 0.73, stonePosition.z),
+      new THREE.Vector3(this.aimPoint.x, 0.73, this.aimPoint.z),
+    ]);
+    const guideColor = this.power >= 90 ? 0xff3c58 : this.power >= 70 ? 0xffd36a : 0x4ce9ff;
+    (this.aimLine.material as THREE.LineDashedMaterial).color.setHex(guideColor);
+    (this.pullLine.material as THREE.LineBasicMaterial).color.setHex(guideColor);
+    (this.aimArrow.material as THREE.MeshBasicMaterial).color.setHex(guideColor);
+    (this.aimTargetRing.material as THREE.MeshBasicMaterial).color.setHex(this.trajectoryTarget ? (this.trajectoryTarget.owner === "enemy" ? 0xff405b : 0xffd36a) : guideColor);
+    this.aimArrow.position.copy(guideEnd);
+    this.aimArrow.position.y = 0.78;
+    this.aimArrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent.lengthSq() ? tangent : new THREE.Vector3(direction.x, 0, direction.y));
+    this.aimTargetRing.position.set(guideEnd.x, 0.6, guideEnd.z);
+    this.aimTargetRing.scale.setScalar(this.trajectoryTarget ? 1.22 : 1);
+  }
+
   private onPointerMove = (event: PointerEvent) => {
     if (this.cameraOrbiting && event.pointerId === this.cameraPointerId) {
       const deltaX = event.clientX - this.orbitPointerX;
@@ -1307,33 +1403,7 @@ export class Alkkagi3DEngine {
     }
     if (!this.aiming || !this.selected) return;
     this.aimPoint.copy(this.boardPoint);
-    const stonePosition = this.selected.group.position;
-    const drag = new THREE.Vector2(stonePosition.x - this.aimPoint.x, stonePosition.z - this.aimPoint.z);
-    this.power = THREE.MathUtils.clamp(drag.length() / 3.1 * 100, 0, 100);
-    const direction = drag.lengthSq() > 0 ? drag.normalize() : new THREE.Vector2(0, -1);
-    const precision = this.selected.character.stats[3];
-    const skillGuide = this.selected.character.skill === "prismAim" ? 1.32 : this.selected.character.skill === "beatBank" ? 1.16 : 1;
-    const guideLength = (1.4 + precision * 0.38) * skillGuide;
-    const guideEnd = new THREE.Vector3(stonePosition.x + direction.x * guideLength, 0.79, stonePosition.z + direction.y * guideLength);
-    const points = [
-      new THREE.Vector3(stonePosition.x, 0.79, stonePosition.z),
-      guideEnd,
-    ];
-    this.aimLine.geometry.setFromPoints(points);
-    this.aimLine.computeLineDistances();
-    this.pullLine.geometry.setFromPoints([
-      new THREE.Vector3(stonePosition.x, 0.73, stonePosition.z),
-      new THREE.Vector3(this.aimPoint.x, 0.73, this.aimPoint.z),
-    ]);
-    const guideColor = this.power >= 90 ? 0xff3c58 : this.power >= 70 ? 0xffd36a : 0x4ce9ff;
-    (this.aimLine.material as THREE.LineDashedMaterial).color.setHex(guideColor);
-    (this.pullLine.material as THREE.LineBasicMaterial).color.setHex(guideColor);
-    (this.aimArrow.material as THREE.MeshBasicMaterial).color.setHex(guideColor);
-    (this.aimTargetRing.material as THREE.MeshBasicMaterial).color.setHex(guideColor);
-    this.aimArrow.position.copy(guideEnd);
-    this.aimArrow.position.y = 0.78;
-    this.aimArrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(direction.x, 0, direction.y));
-    this.aimTargetRing.position.set(guideEnd.x, 0.6, guideEnd.z);
+    this.updateAimGuide();
     this.emit();
   };
 
@@ -1349,12 +1419,17 @@ export class Alkkagi3DEngine {
       return;
     }
     if (!this.aiming || !this.selected) return;
+    if (this.phase !== "battle" || this.active !== "player" || this.shotMoving || this.replayMode) {
+      this.cancelPointer();
+      return;
+    }
     this.updatePointer(event);
     this.aiming = false;
     this.aimLine.visible = false;
     this.pullLine.visible = false;
     this.aimArrow.visible = false;
     this.aimTargetRing.visible = false;
+    this.trajectoryTarget = null;
     if (this.power < 5) {
       this.power = 0;
       this.message = "조금 더 뒤로 당겨 힘을 주세요";
@@ -1376,6 +1451,7 @@ export class Alkkagi3DEngine {
     this.pullLine.visible = false;
     this.aimArrow.visible = false;
     this.aimTargetRing.visible = false;
+    this.trajectoryTarget = null;
     this.power = 0;
     this.emit();
   };
@@ -1388,8 +1464,8 @@ export class Alkkagi3DEngine {
     if (event.key === "ArrowDown") this.cameraPitch = Math.max(0.4, this.cameraPitch - 0.08);
     if (event.key === "Escape") this.cancelPointer();
     if (!this.aiming) return;
-    if (event.key.toLowerCase() === "q") this.aimSpin = Math.max(-1, this.aimSpin - 0.2);
-    if (event.key.toLowerCase() === "e") this.aimSpin = Math.min(1, this.aimSpin + 0.2);
+    if (event.key.toLowerCase() === "q") this.setAimSpin(this.aimSpin - 0.2);
+    if (event.key.toLowerCase() === "e") this.setAimSpin(this.aimSpin + 0.2);
   };
 
   private onContextMenu = (event: MouseEvent) => event.preventDefault();
@@ -1440,6 +1516,8 @@ export class Alkkagi3DEngine {
     this.stableTime = 0;
     this.power = 0;
     this.bonus = false;
+    const spinLabel = Math.abs(spin) < 0.01 ? "무회전" : `${spin > 0 ? "우" : "좌"}회전 ${Math.round(Math.abs(spin) * 100)}%`;
+    this.pushCombatEvent("shot", stone.owner, `${stone.character.name} SHOT`, `파워 ${Math.round(power)} · ${spinLabel}`);
     const reactiveSkill = stone.character.skill === "chainSpark" || stone.character.skill === "rescue" || stone.character.skill === "counter" || stone.character.skill === "fortress";
     if (!reactiveSkill) this.triggerSkill(stone, this.launchSkillDetail(stone, power));
     this.playLaunch(stone.character.element, power);
@@ -1508,6 +1586,11 @@ export class Alkkagi3DEngine {
       second.impactPulse = Math.min(1, second.impactPulse + collision.impulse * 0.12);
       this.cameraShake = Math.max(this.cameraShake, Math.min(0.12, collision.impulse * 0.018));
       this.spawnImpact(position, element, collision.impulse);
+      const strongImpact = collision.impulse >= 1.1;
+      if (strongImpact) {
+        const impactLabel = collision.impulse >= 3.4 ? "CRITICAL IMPACT" : collision.impulse >= 2 ? "HEAVY IMPACT" : "SOLID HIT";
+        this.pushCombatEvent("impact", this.shotOwner, impactLabel, `${first.character.name} ↔ ${second.character.name} · 충격 ${collision.impulse.toFixed(1)}`);
+      }
       const skillStone = [first, second].find((stone) => stone.character.skill === "chainSpark")
         || [first, second].find((stone) => stone.character.skill === "counter")
         || [first, second].find((stone) => stone.character.skill === "fortress");
@@ -1518,7 +1601,7 @@ export class Alkkagi3DEngine {
         this.spawnArc(position, skillStone.character.accent);
       } else if (skillStone?.character.skill === "counter") this.triggerSkill(skillStone, "중량 저항으로 충격 반동 상쇄");
       else if (skillStone?.character.skill === "fortress") this.triggerSkill(skillStone, "철벽 중량으로 충돌 축 유지");
-      if (skillStone) this.emit();
+      if (skillStone || strongImpact) this.emit();
     }
   }
 
@@ -1534,6 +1617,7 @@ export class Alkkagi3DEngine {
     this.spawnRingOutVortex(stone.group.position.clone(), stone.character.element);
     this.playFall(stone);
     this.message = stone.owner === "enemy" ? `${stone.character.name} RING-OUT!` : `${stone.character.name} · 심연 추락!`;
+    this.pushCombatEvent("ringout", stone.owner === "enemy" ? "player" : "enemy", "RING-OUT", `${stone.character.name}이(가) 심연으로 추락`);
     this.emit();
   }
 
@@ -1548,6 +1632,7 @@ export class Alkkagi3DEngine {
     stone.velocity.set(-normalX * 0.82, -normalZ * 0.82);
     stone.spin *= 0.4;
     this.triggerSkill(stone, "충전 1회 사용 · 추락 방지");
+    this.pushCombatEvent("system", stone.owner, "RESCUE", `${stone.character.name} 추락 무효`);
     this.spawnImpact(stone.group.position.clone(), "earth", 3.8);
     this.playTone(380, 0.18, 0.055, 920, "triangle");
     this.emit();
@@ -1572,6 +1657,7 @@ export class Alkkagi3DEngine {
         this.onReplayReady(structuredClone(this.currentReplay));
       }
       this.playResult(this.winner === "player");
+      this.pushCombatEvent("result", this.winner, this.winner === "player" ? "VICTORY" : "DEFEAT", `${playerAlive} : ${enemyAlive} · 최종 생존 판정`);
       this.emit();
       return;
     }
@@ -1579,12 +1665,14 @@ export class Alkkagi3DEngine {
       this.active = outcome.active;
       this.bonus = true;
       this.message = this.active === "player" ? "BONUS SHOT · 한 번 더!" : "적이 BONUS SHOT을 획득했습니다";
+      this.pushCombatEvent("bonus", this.active, "BONUS SHOT", "상대 돌을 떨어뜨려 연속 턴 획득");
       this.playBonus();
       window.setTimeout(() => { this.bonus = false; this.emit(); }, 1800);
     } else {
       this.active = outcome.active;
       this.bonus = false;
       this.message = this.active === "player" ? "당신의 턴입니다" : "지옥 AI가 조준 중입니다";
+      this.pushCombatEvent("system", this.active, this.active === "player" ? "YOUR TURN" : "ENEMY TURN", `${MATCH_RULES.turnSeconds}초 조준 제한`);
       this.playTurnCue(this.active);
     }
     this.phaseDeadline = performance.now() + MATCH_RULES.turnSeconds * 1000;
@@ -1996,8 +2084,16 @@ export class Alkkagi3DEngine {
     if (now < this.phaseDeadline) return;
     if (this.phase === "placement") this.confirmPlacement();
     else if (this.active === "player") {
+      this.aiming = false;
+      this.aimLine.visible = false;
+      this.pullLine.visible = false;
+      this.aimArrow.visible = false;
+      this.aimTargetRing.visible = false;
+      this.trajectoryTarget = null;
+      this.power = 0;
       this.active = "enemy";
       this.message = "시간 초과 · 상대 턴";
+      this.pushCombatEvent("system", "enemy", "TIME OVER", "20초 조준 시간이 끝나 턴이 넘어갑니다");
       this.playUiCue("warning");
       this.phaseDeadline = performance.now() + MATCH_RULES.turnSeconds * 1000;
       this.scheduleAi();

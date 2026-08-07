@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   applyEdgeGrip,
+  buildAimTrajectory,
   calculateLaunchVelocity,
   integrateBody,
   isRingOut,
@@ -38,6 +39,17 @@ test("fixed-step integration applies friction and spin curve", () => {
   assert.ok(Math.hypot(straight.vx, straight.vz) < 5);
   assert.equal(straight.vz, 0);
   assert.ok(curved.vz > 0);
+});
+
+test("shot forecast curves left and right around the straight trajectory", () => {
+  const straight = buildAimTrajectory(0, 0, 0, -1, 4, 0);
+  const leftCurve = buildAimTrajectory(0, 0, 0, -1, 4, -0.2);
+  const rightCurve = buildAimTrajectory(0, 0, 0, -1, 4, 0.2);
+  assert.equal(straight.length, 25);
+  assert.ok(Math.abs(straight.at(-1)!.x) < 0.000001);
+  assert.ok(leftCurve.at(-1)!.x < 0);
+  assert.ok(rightCurve.at(-1)!.x > 0);
+  assert.equal(leftCurve.at(-1)!.z, rightCurve.at(-1)!.z);
 });
 
 test("wide arena edge grip slows only outward motion near the rim", () => {
