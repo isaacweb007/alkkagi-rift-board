@@ -164,6 +164,7 @@ export class Alkkagi3DEngine {
   private cameraYaw = 0;
   private cameraPitch = 0.52;
   private cameraDistance = 12.8;
+  private cameraFitScale = 1;
   private cameraOrbiting = false;
   private cameraPointerId = -1;
   private orbitPointerX = 0;
@@ -610,15 +611,15 @@ export class Alkkagi3DEngine {
 
   private createStone(character: Character, owner: Owner, index: number, tone: TeamTone): Stone {
     const group = new THREE.Group();
-    const bodyColor = tone === "white" ? 0xe8e5dc : 0x111319;
+    const bodyColor = tone === "white" ? 0xd3d0c8 : 0x101218;
     const bodyMaterial = new THREE.MeshPhysicalMaterial({
       color: bodyColor,
-      roughness: tone === "white" ? 0.26 : 0.34,
-      metalness: 0.3,
-      clearcoat: 0.82,
-      clearcoatRoughness: 0.2,
+      roughness: tone === "white" ? 0.34 : 0.38,
+      metalness: 0.24,
+      clearcoat: 0.72,
+      clearcoatRoughness: 0.24,
       emissive: character.accent,
-      emissiveIntensity: tone === "white" ? 0.01 : 0.014,
+      emissiveIntensity: tone === "white" ? 0.006 : 0.012,
       bumpMap: this.stoneSurfaceTexture,
       bumpScale: 0.022,
     });
@@ -652,17 +653,17 @@ export class Alkkagi3DEngine {
     contactShadow.position.y = -0.267;
     contactShadow.renderOrder = 1;
     group.add(contactShadow);
-    const faceGeometry = new THREE.PlaneGeometry(0.7, 0.36, 16, 8);
+    const faceGeometry = new THREE.PlaneGeometry(0.78, 0.4, 18, 10);
     const facePositions = faceGeometry.attributes.position as THREE.BufferAttribute;
     for (let vertex = 0; vertex < facePositions.count; vertex += 1) {
-      const x = facePositions.getX(vertex) / 0.35;
-      const y = facePositions.getY(vertex) / 0.18;
-      facePositions.setZ(vertex, -0.14 * x * x - 0.022 * y * y);
+      const x = facePositions.getX(vertex) / 0.39;
+      const y = facePositions.getY(vertex) / 0.2;
+      facePositions.setZ(vertex, -0.145 * x * x - 0.02 * y * y);
     }
     faceGeometry.computeVertexNormals();
     const faceTexture = this.createFaceTexture(character);
     const face = new THREE.Mesh(faceGeometry, new THREE.MeshBasicMaterial({ map: faceTexture, transparent: true, alphaTest: 0.035, depthWrite: false, toneMapped: false }));
-    face.position.set(0, 0.145, 0.487);
+    face.position.set(0, 0.115, 0.5);
     face.renderOrder = 3;
     face.userData.characterFaceMesh = true;
     group.add(face);
@@ -701,76 +702,128 @@ export class Alkkagi3DEngine {
     context.lineJoin = "round";
     context.lineCap = "round";
 
+    const profiles: Record<CharacterStyle, {
+      eyeY: number;
+      eyeWidth: number;
+      eyeHeight: number;
+      rotations: readonly [number, number];
+      gazes: readonly [number, number];
+      browY: number;
+      browTilt: number;
+      browWeight: number;
+      mouthY: number;
+      mouthWidth: number;
+      smile: number;
+      accentOutline: boolean;
+    }> = {
+      rookie: { eyeY: 118, eyeWidth: 78, eyeHeight: 51, rotations: [-0.035, 0.035], gazes: [10, -10], browY: 57, browTilt: 0.12, browWeight: 18, mouthY: 205, mouthWidth: 42, smile: 20, accentOutline: false },
+      knight: { eyeY: 121, eyeWidth: 76, eyeHeight: 43, rotations: [0.045, -0.045], gazes: [11, -11], browY: 62, browTilt: 0.18, browWeight: 20, mouthY: 204, mouthWidth: 40, smile: 18, accentOutline: false },
+      wizard: { eyeY: 116, eyeWidth: 74, eyeHeight: 45, rotations: [-0.1, 0.1], gazes: [12, -12], browY: 55, browTilt: 0.22, browWeight: 18, mouthY: 203, mouthWidth: 39, smile: 17, accentOutline: true },
+      clockwork: { eyeY: 119, eyeWidth: 73, eyeHeight: 47, rotations: [-0.02, 0.06], gazes: [9, -7], browY: 58, browTilt: 0.14, browWeight: 18, mouthY: 205, mouthWidth: 40, smile: 17, accentOutline: false },
+      courier: { eyeY: 121, eyeWidth: 76, eyeHeight: 43, rotations: [0.05, -0.05], gazes: [13, -13], browY: 61, browTilt: 0.2, browWeight: 20, mouthY: 205, mouthWidth: 41, smile: 18, accentOutline: true },
+      cat: { eyeY: 118, eyeWidth: 72, eyeHeight: 41, rotations: [-0.12, 0.12], gazes: [13, -13], browY: 55, browTilt: 0.25, browWeight: 19, mouthY: 202, mouthWidth: 38, smile: 16, accentOutline: true },
+      safety: { eyeY: 122, eyeWidth: 75, eyeHeight: 45, rotations: [0.035, -0.035], gazes: [10, -10], browY: 62, browTilt: 0.16, browWeight: 20, mouthY: 207, mouthWidth: 39, smile: 17, accentOutline: false },
+      crystal: { eyeY: 119, eyeWidth: 73, eyeHeight: 42, rotations: [-0.08, 0.08], gazes: [12, -12], browY: 57, browTilt: 0.23, browWeight: 18, mouthY: 203, mouthWidth: 40, smile: 16, accentOutline: true },
+      comet: { eyeY: 121, eyeWidth: 75, eyeHeight: 37, rotations: [0.1, -0.1], gazes: [15, -15], browY: 58, browTilt: 0.3, browWeight: 21, mouthY: 205, mouthWidth: 42, smile: 14, accentOutline: true },
+      aurora: { eyeY: 118, eyeWidth: 79, eyeHeight: 39, rotations: [-0.07, 0.07], gazes: [12, -12], browY: 54, browTilt: 0.22, browWeight: 18, mouthY: 201, mouthWidth: 43, smile: 17, accentOutline: true },
+    };
+    const profile = profiles[character.style];
+
     const drawEye = (centerX: number, rotation: number, gaze: number) => {
       context.save();
-      context.translate(centerX, 112);
+      context.translate(centerX, profile.eyeY);
       context.rotate(rotation);
-      context.fillStyle = "#07090d";
+      context.shadowColor = profile.accentOutline ? accent : "rgba(0,0,0,0)";
+      context.shadowBlur = profile.accentOutline ? 10 : 0;
+      context.fillStyle = "#05070b";
       context.beginPath();
-      context.ellipse(0, 0, 78, character.demon ? 45 : 50, 0, 0, Math.PI * 2);
+      context.ellipse(0, 0, profile.eyeWidth + 7, profile.eyeHeight + 7, 0, 0, Math.PI * 2);
       context.fill();
-      context.fillStyle = "#f7f5ed";
+      context.shadowBlur = 0;
+      const eyeGradient = context.createRadialGradient(-18, -15, 5, 0, 0, profile.eyeWidth);
+      eyeGradient.addColorStop(0, "#ffffff");
+      eyeGradient.addColorStop(0.68, "#f4f3ed");
+      eyeGradient.addColorStop(1, "#cfd3d5");
+      context.fillStyle = eyeGradient;
       context.beginPath();
-      context.ellipse(0, 4, 65, character.demon ? 33 : 38, 0, 0, Math.PI * 2);
+      context.ellipse(0, 3, profile.eyeWidth, profile.eyeHeight, 0, 0, Math.PI * 2);
       context.fill();
-      context.fillStyle = accent;
+      context.fillStyle = "#11151b";
       context.beginPath();
-      context.arc(gaze, 8, 18, 0, Math.PI * 2);
-      context.fill();
-      context.fillStyle = "#080a0f";
-      context.beginPath();
-      context.arc(gaze, 8, 11, 0, Math.PI * 2);
-      context.fill();
-      context.fillStyle = "#ffffff";
-      context.beginPath();
-      context.arc(gaze - 4, 3, 4.5, 0, Math.PI * 2);
+      context.ellipse(gaze, 8, 20, 23, 0, 0, Math.PI * 2);
       context.fill();
       context.strokeStyle = accent;
-      context.lineWidth = 5;
+      context.lineWidth = profile.accentOutline ? 5 : 3;
       context.beginPath();
-      context.ellipse(0, 4, 67, character.demon ? 35 : 40, 0, 0, Math.PI * 2);
+      context.ellipse(gaze, 8, 20, 23, 0, 0, Math.PI * 2);
       context.stroke();
+      context.fillStyle = "#ffffff";
+      context.beginPath();
+      context.arc(gaze - 6, 0, 6, 0, Math.PI * 2);
+      context.fill();
       context.restore();
     };
 
-    drawEye(154, -0.055, 12);
-    drawEye(358, 0.055, -12);
-    context.fillStyle = "#07090d";
+    drawEye(153, profile.rotations[0], profile.gazes[0]);
+    drawEye(359, profile.rotations[1], profile.gazes[1]);
+
+    const drawBrow = (side: -1 | 1) => {
+      const innerX = 256 + side * 43;
+      const outerX = 256 + side * 181;
+      const tilt = profile.browTilt * 90;
+      context.strokeStyle = "#06080c";
+      context.lineWidth = profile.browWeight;
+      context.beginPath();
+      context.moveTo(innerX, profile.browY + tilt);
+      context.quadraticCurveTo(256 + side * 112, profile.browY + 5, outerX, profile.browY - tilt * 0.22);
+      context.stroke();
+      if (profile.accentOutline) {
+        context.strokeStyle = accent;
+        context.globalAlpha = 0.42;
+        context.lineWidth = 4;
+        context.stroke();
+        context.globalAlpha = 1;
+      }
+    };
+    drawBrow(-1);
+    drawBrow(1);
+
+    context.strokeStyle = "#05070b";
+    context.lineWidth = 16;
     context.beginPath();
-    context.moveTo(70, 42);
-    context.lineTo(226, 78);
-    context.lineTo(218, 101);
-    context.lineTo(64, 65);
-    context.closePath();
-    context.fill();
-    context.beginPath();
-    context.moveTo(442, 42);
-    context.lineTo(286, 78);
-    context.lineTo(294, 101);
-    context.lineTo(448, 65);
-    context.closePath();
-    context.fill();
-    context.strokeStyle = "#080a0f";
-    context.lineWidth = character.demon ? 12 : 10;
-    context.beginPath();
-    if (character.demon) {
-      context.moveTo(218, 204);
-      context.quadraticCurveTo(264, 226, 310, 196);
-    } else {
-      context.moveTo(222, 196);
-      context.quadraticCurveTo(256, 222, 290, 196);
-    }
+    context.moveTo(256 - profile.mouthWidth, profile.mouthY);
+    context.quadraticCurveTo(256, profile.mouthY + profile.smile, 256 + profile.mouthWidth, profile.mouthY);
+    context.stroke();
+    context.strokeStyle = "#f8f5e9";
+    context.lineWidth = 7;
     context.stroke();
 
     if (character.style === "cat") {
       context.strokeStyle = accent;
-      context.lineWidth = 5;
+      context.lineWidth = 6;
       for (const side of [-1, 1]) {
         context.beginPath();
-        context.moveTo(256 + side * 68, 176);
-        context.lineTo(256 + side * 126, 164);
+        context.moveTo(256 + side * 62, 178);
+        context.lineTo(256 + side * 132, 164);
+        context.stroke();
+        context.beginPath();
+        context.moveTo(256 + side * 66, 188);
+        context.lineTo(256 + side * 128, 191);
         context.stroke();
       }
+    }
+
+    if (character.style === "aurora" || character.style === "crystal") {
+      context.strokeStyle = accent;
+      context.globalAlpha = 0.62;
+      context.lineWidth = 5;
+      context.beginPath();
+      context.moveTo(46, 151);
+      context.lineTo(87, 178);
+      context.moveTo(466, 151);
+      context.lineTo(425, 178);
+      context.stroke();
+      context.globalAlpha = 1;
     }
 
     const texture = new THREE.CanvasTexture(canvas);
@@ -1707,9 +1760,13 @@ export class Alkkagi3DEngine {
   private resize() {
     const width = Math.max(1, this.container.clientWidth);
     const height = Math.max(1, this.container.clientHeight);
-    this.camera.aspect = width / height;
+    const aspect = width / height;
+    this.camera.aspect = aspect;
+    this.cameraFitScale = aspect < 1.5 ? THREE.MathUtils.lerp(1.16, 1, THREE.MathUtils.clamp((aspect - 0.8) / 0.7, 0, 1)) : 1;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
+    this.renderer.domElement.style.width = `${width}px`;
+    this.renderer.domElement.style.height = `${height}px`;
   }
 
   private animate = () => {
@@ -1723,9 +1780,10 @@ export class Alkkagi3DEngine {
       this.accumulator -= FIXED_STEP;
     }
     this.updateTimer(performance.now());
-    const horizontalDistance = Math.cos(this.cameraPitch) * this.cameraDistance;
+    const fittedCameraDistance = this.cameraDistance * this.cameraFitScale;
+    const horizontalDistance = Math.cos(this.cameraPitch) * fittedCameraDistance;
     const targetX = Math.sin(this.cameraYaw) * horizontalDistance;
-    const targetY = this.cameraTarget.y + Math.sin(this.cameraPitch) * this.cameraDistance;
+    const targetY = this.cameraTarget.y + Math.sin(this.cameraPitch) * fittedCameraDistance;
     const targetZ = Math.cos(this.cameraYaw) * horizontalDistance;
     if (this.cameraShake > 0.001) {
       this.camera.position.set(targetX + THREE.MathUtils.randFloatSpread(this.cameraShake), targetY + THREE.MathUtils.randFloatSpread(this.cameraShake * 0.45), targetZ + THREE.MathUtils.randFloatSpread(this.cameraShake));
