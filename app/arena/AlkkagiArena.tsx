@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { Alkkagi3DEngine, CHARACTER_CATALOG, type ArenaKind, type ArenaSnapshot, type AudioSettings, type CharacterStyle, type MatchMode, type TeamTone } from "./engine";
-import { GOLDEN_ARENAS, GOLDEN_CHARACTER_NAMES } from "./art-direction";
+import { GOLDEN_ARENAS, GOLDEN_ART, GOLDEN_CHARACTER_NAMES } from "./art-direction";
 import { validateAndNormalizeReplay, type MatchReplay } from "./replay";
 import { CharacterInspector, CombatFeed, CombatTelemetry, SkillActivation, SpinControl, SquadBuilder, TeamRail } from "./CharacterPanels";
 

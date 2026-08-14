@@ -267,6 +267,7 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(component, /aria-live="polite"/);
   assert.match(component, /data-testid="reset-camera"/);
   assert.match(component, /360° 회전/);
+  assert.match(component, /import \{ GOLDEN_ARENAS, GOLDEN_ART, GOLDEN_CHARACTER_NAMES \} from "\.\/art-direction"/);
   assert.match(characterPanels, /data-testid="squad-builder"/);
   assert.match(characterPanels, /data-testid="deploy-squad"/);
   assert.match(characterPanels, /data-testid="character-inspector"/);
