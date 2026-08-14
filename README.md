@@ -51,9 +51,16 @@ npm test
 
 ## 주요 문서
 
+- [전체 게임 제작 문서 인덱스](docs/README.md)
 - [게임 완성 로드맵](GAME_COMPLETION_ROADMAP.md)
 - [골든 아트 디렉션](GOLDEN_ART_DIRECTION.md)
 - [7개 언어 비주얼 콘셉트 북](public/ALKAGI_CONCEPT_BOOK.html)
+- [구현용 오디오 이벤트 명세](specs/audio-events.csv)
+
+## 프로젝트 전용 제작 스킬
+
+- [`design-alkkagi-game`](skills/design-alkkagi-game/SKILL.md): 물리 규칙, 세계관, 캐릭터, 모드와 밸런스를 일관되게 설계합니다.
+- [`direct-game-feel-audio`](skills/direct-game-feel-audio/SKILL.md): 충돌음, 음악, VFX, 카메라, 히트스톱과 접근성을 하나의 타격감 시스템으로 설계합니다.
 
 ## 현재 개발 단계
 
