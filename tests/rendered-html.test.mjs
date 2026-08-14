@@ -299,8 +299,8 @@ test("ships the real WebGL 3D arena engine", async () => {
   assert.match(core, /boardRadius: 5\.75/);
   assert.match(core, /export function resolveShotOutcome/);
   assert.match(core, /fixedStep: 1 \/ 120/);
-  assert.match(styles, /arena-modern-danger-v2\.png/);
-  assert.match(styles, /character-roster-3d-v2\.png/);
+  assert.match(styles, /var\(--arena-background\)/);
+  assert.match(styles, /var\(--character-atlas\)/);
   assert.match(styles, /power-needle/);
   assert.match(styles, /selected-concept-portrait/);
   assert.match(styles, /prefers-reduced-motion:reduce/);

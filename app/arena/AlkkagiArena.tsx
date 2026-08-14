@@ -50,6 +50,13 @@ const AUDIO_CHANNELS: Array<{ key: "master" | "sfx" | "music"; label: string }> 
   { key: "music", label: "배경 음악" },
 ];
 
+function gameFetch(input: string, init?: RequestInit) {
+  if (typeof window !== "undefined" && window.location.hostname.endsWith(".github.io")) {
+    return Promise.resolve(new Response(null, { status: 404 }));
+  }
+  return fetch(input, init);
+}
+
 function Pips({ alive, count, tone }: { alive: number; count: number; tone: TeamTone }) {
   return <span className={`arena-pips tone-${tone}`}>{Array.from({ length: count }, (_, index) => <i className={index < alive ? "" : "out"} key={index} />)}</span>;
 }
@@ -92,7 +99,7 @@ export default function AlkkagiArena() {
       localStorage.setItem("alkkagi-last-replay-v1", JSON.stringify(replay));
       const guestId = profileRef.current.id;
       if (!guestId) return;
-      fetch("/api/game/replay", {
+      gameFetch("/api/game/replay", {
         method: "POST",
         headers: { "content-type": "application/json", "x-alkkagi-guest": guestId },
         body: JSON.stringify(replay),
@@ -137,8 +144,8 @@ export default function AlkkagiArena() {
     let cancelled = false;
     const headers = { "x-alkkagi-guest": next.id };
     Promise.all([
-      fetch("/api/game/profile", { headers }).then((response) => response.ok ? response.json() : null),
-      fetch("/api/game/replay", { headers }).then((response) => response.ok ? response.json() : null),
+      gameFetch("/api/game/profile", { headers }).then((response) => response.ok ? response.json() : null),
+      gameFetch("/api/game/replay", { headers }).then((response) => response.ok ? response.json() : null),
     ]).then(([profilePayload, replayPayload]) => {
       if (cancelled) return;
       if (profilePayload?.profile) {
@@ -168,7 +175,7 @@ export default function AlkkagiArena() {
       localStorage.setItem("alkkagi-3d-profile-v1", JSON.stringify(next));
       return next;
     });
-    fetch("/api/game/result", {
+    gameFetch("/api/game/result", {
       method: "POST",
       headers: { "content-type": "application/json", "x-alkkagi-guest": profile.id },
       body: JSON.stringify({ mode: "practice", count: snapshot.count, win, practiceLevel: aiLevel, resultId: resultKey }),
@@ -244,6 +251,7 @@ export default function AlkkagiArena() {
 
   const arenaStyle = {
     "--arena-background": `url(${GOLDEN_ARENAS[arena].background})`,
+    "--character-atlas": `url(${GOLDEN_ART.characterAtlas})`,
   } as CSSProperties;
 
   return (
@@ -253,7 +261,7 @@ export default function AlkkagiArena() {
       <div className="arena-vignette" />
 
       <header className="arena-topbar">
-        <a className="arena-brand" href="/ALKAGI_CONCEPT_BOOK.html"><span>✦</span><b>ALKKAGI<small>RIFT BOARD · WEBGL</small></b></a>
+        <a className="arena-brand" href="../ALKAGI_CONCEPT_BOOK.html"><span>✦</span><b>ALKKAGI<small>RIFT BOARD · WEBGL</small></b></a>
         <div className="arena-profile"><span>LV <b>{profile.level}</b></span><i /><span>◆ {profile.points} PP</span><i /><span>{profile.xp} XP</span></div>
         <button className={`round-control ${audioOpen ? "active" : ""}`} onClick={toggleAudioPanel} aria-label="사운드 믹서 열기" aria-expanded={audioOpen}>{audioSettings.muted ? "×" : "♪"}</button>
       </header>
