@@ -4,7 +4,9 @@
 
 ## [지금 웹에서 플레이하기](https://alkkagi-rift-board.isaacweb007.chatgpt.site/arena)
 
-## [GitHub Pages에서 바로 플레이하기](https://isaacweb007.github.io/alkkagi-rift-board/)
+## [GitHub Pages에서 3D 게임 바로 플레이하기](https://isaacweb007.github.io/alkkagi-rift-board/arena/)
+
+[HTML5 경량 플레이 버전](https://isaacweb007.github.io/alkkagi-rift-board/play/)
 
 ![ALKKAGI: RIFT BOARD](public/og.png)
 

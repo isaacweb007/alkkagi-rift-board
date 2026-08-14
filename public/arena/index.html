@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#05070e" />
+  <meta name="description" content="ALKKAGI: RIFT BOARD WebGL 3D arena" />
+  <title>알까기: 시공의 판 — WebGL 3D 아레나</title>
+  <style>
+    *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#05070e;color:#fff;font-family:Inter,system-ui,sans-serif}
+    iframe{display:block;width:100%;height:100%;border:0;background:#05070e}
+    .loading{position:fixed;inset:0;z-index:2;display:grid;place-content:center;gap:18px;text-align:center;background:radial-gradient(circle at 50% 42%,#172540,#05070e 65%);transition:opacity .35s}
+    .loading.done{opacity:0;pointer-events:none}.stone{width:72px;height:72px;margin:auto;border:2px solid #55d9ff;border-radius:50%;background:radial-gradient(circle at 35% 28%,#415875,#101826 55%,#03050a);box-shadow:0 0 34px #29bfff88;animation:pulse 1.1s ease-in-out infinite alternate}
+    strong{font-size:18px;letter-spacing:.12em}small{color:#9eb2ca}a{color:#62ddff}
+    @keyframes pulse{to{transform:scale(1.08);box-shadow:0 0 54px #29bffff0}}
+  </style>
+</head>
+<body>
+  <div class="loading" id="loading">
+    <span class="stone"></span>
+    <strong>WEBGL 3D ARENA LOADING</strong>
+    <small>알까기: 시공의 판을 불러오는 중입니다.</small>
+    <a href="https://alkkagi-rift-board.isaacweb007.chatgpt.site/arena">직접 3D 게임 열기</a>
+  </div>
+  <iframe
+    id="arena"
+    title="알까기: 시공의 판 WebGL 3D 게임"
+    src="https://alkkagi-rift-board.isaacweb007.chatgpt.site/arena"
+    allow="autoplay; fullscreen; gamepad"
+    allowfullscreen
+  ></iframe>
+  <script>
+    document.getElementById("arena").addEventListener("load", function () {
+      document.getElementById("loading").classList.add("done");
+    });
+  </script>
+</body>
+</html>
